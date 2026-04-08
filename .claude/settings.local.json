@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd:*)",
+      "Bash(dart run:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(find D:FlutterProjectscampusnexios -name Info.plist -o -name *deeplink*)",
+      "Bash(xargs grep:*)",
+      "Bash(grep -E \"\\\\.dart$\")",
+      "Bash(grep -r \"validateImage\\\\|compressImage\\\\|resizeImage\\\\|convertImage\" /d/FlutterProjects/campusnex/lib --include=*.dart)",
+      "Bash(flutter pub:*)",
+      "Bash(find /d/FlutterProjects/campusnex -type f \\\\\\(-name *.sql -o -name *migration* -o -name *schema* \\\\\\))",
+      "Bash(grep -r \"INSERT\\\\|CREATE\\\\|POLICY\\\\|RLS\" /d/FlutterProjects/campusnex --include=*.dart --include=*.sql --include=*.ts --include=*.js)",
+      "Bash(find /d/FlutterProjects/campusnex -name README* -o -name *.md)",
+      "Bash(grep -r \"auth_user_id\\\\|can_create_admin\\\\|created_by\" /d/FlutterProjects/campusnex/lib --include=*.dart)",
+      "Bash(grep -r \"super_user\\\\|admin.*create\\\\|createAdmin\" /d/FlutterProjects/campusnex/lib --include=*.dart -B 2 -A 2)",
+      "Bash(grep -rn \"createUser\\\\|insert\" /d/FlutterProjects/campusnex/lib/core/repositories/ --include=*.dart)",
+      "Bash(grep -E \"\\\\.\\(dart|json\\)$\")",
+      "Bash(grep -i \"\\\\.dart$\")"
+    ]
+  }
+}

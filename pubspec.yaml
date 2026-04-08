@@ -1,0 +1,59 @@
+name: campusnex
+description: "CampusNex - Education Management Simplified"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Supabase
+  supabase_flutter: ^2.8.4
+
+  # State Management
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+
+  # Navigation
+  go_router: ^14.8.1
+
+  # UI
+  syncfusion_flutter_datagrid: ^24.2.0
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1
+  cached_network_image: ^3.4.1
+  pin_code_fields: ^8.0.1
+  shimmer: ^3.0.0
+
+  # Storage / Env
+  flutter_dotenv: ^5.2.1
+  shared_preferences: ^2.3.5
+
+  # Media
+  image_picker: ^1.1.2
+  flutter_image_compress: ^2.3.0
+
+  # Utilities
+  intl: ^0.20.2
+  uuid: ^4.5.1
+  logger: ^2.5.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  build_runner: ^2.4.15
+  riverpod_generator: ^2.6.3
+  custom_lint: ^0.7.5
+  riverpod_lint: ^2.6.3
+
+flutter:
+  uses-material-design: true
+  assets:
+    - .env
+    - assets/images/
+    - assets/icons/
