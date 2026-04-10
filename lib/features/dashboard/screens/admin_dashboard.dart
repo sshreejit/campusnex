@@ -9,6 +9,9 @@ import '../../../core/repositories/user_repository.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../auth/auth_notifier.dart';
 import '../../auth/auth_state.dart';
+import '../../designations/models/designation_model.dart';
+import '../../designations/providers/designation_provider.dart';
+import '../../designations/repositories/designation_repository.dart';
 import '../../roles/models/role_model.dart';
 import '../../roles/repositories/roles_repository.dart';
 import '../providers/dashboard_providers.dart';
@@ -41,32 +44,75 @@ class AdminDashboard extends ConsumerWidget {
       length: tabs.length,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Admin Dashboard'),
+          elevation: 0,
+          backgroundColor: Colors.white,
+          titleSpacing: 16,
           automaticallyImplyLeading: false,
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.blue,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (canManageAdmins) ...[
+                      const Icon(Icons.star, size: 14, color: Colors.white),
+                      const SizedBox(width: 4),
+                    ],
+                    const Text(
+                      'Admin',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Welcome, $userName',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
           actions: [
-            IconButton(
-              tooltip: 'Sign out',
-              icon: const Icon(Icons.logout),
-              onPressed: () =>
-                  ref.read(authNotifierProvider.notifier).signOut(),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: (value) {
+                if (value == 'logout') {
+                  ref.read(authNotifierProvider.notifier).signOut();
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'logout',
+                  child: Row(
+                    children: [
+                      Icon(Icons.logout, size: 20),
+                      SizedBox(width: 12),
+                      Text('Logout'),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
           bottom: TabBar(tabs: tabs),
         ),
         backgroundColor: AppColors.background,
-        body: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _RoleBanner(
-              label: 'Admin',
-              color: AppColors.adminColor,
-              userName: userName,
-            ),
-            Expanded(
-              child: TabBarView(children: tabViews),
-            ),
-          ],
-        ),
+        body: TabBarView(children: tabViews),
       ),
     );
   }
@@ -83,6 +129,10 @@ class _AdminManagementTab extends ConsumerWidget {
     final creatorNames =
         ref.watch(adminCreatorNamesProvider).valueOrNull ?? {};
     final rolesAsync = ref.watch(rolesProvider);
+    final designationsAsync = ref.watch(designationsProvider);
+    final authState = ref.watch(authNotifierProvider);
+    final currentUser = authState is AuthSuccess ? authState.user : null;
+    final isManager = currentUser?.canCreateAdmin ?? false;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
@@ -114,6 +164,9 @@ class _AdminManagementTab extends ConsumerWidget {
                               : null,
                           onEdit: () =>
                               _showEditAdminSheet(context, ref, admin),
+                          onDelete: isManager && admin.id != currentUser?.id
+                              ? () => _deleteAdmin(context, ref, admin)
+                              : null,
                         ),
                       ))
                   .toList(),
@@ -145,6 +198,39 @@ class _AdminManagementTab extends ConsumerWidget {
                           role: role,
                           onDelete: () => _deleteRole(context, ref, role),
                           onEdit: () => _showEditRoleSheet(context, ref, role),
+                        ),
+                      ))
+                  .toList(),
+            );
+          },
+        ),
+        const SizedBox(height: 24),
+        // ── Designations Section ──
+        _SectionHeader(
+          title: 'Designations',
+          onAdd: () => _showAddDesignationSheet(context, ref),
+        ),
+        const SizedBox(height: 8),
+        designationsAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('Error: $e')),
+          data: (designations) {
+            if (designations.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(child: Text('No designations yet.')),
+              );
+            }
+            return Column(
+              children: designations
+                  .map((d) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _DesignationCard(
+                          designation: d,
+                          onDelete: () =>
+                              _deleteDesignation(context, ref, d),
+                          onEdit: () =>
+                              _showEditDesignationSheet(context, ref, d),
                         ),
                       ))
                   .toList(),
@@ -237,18 +323,97 @@ class _AdminManagementTab extends ConsumerWidget {
     }
   }
 
-  Future<void> _deleteRole(
-      BuildContext context, WidgetRef ref, RoleModel role) async {
+  Future<void> _deleteAdmin(
+      BuildContext context, WidgetRef ref, UserModel admin) async {
     final currentUser = await ref.read(currentUserProvider.future);
     if (currentUser == null) return;
 
-    final result = await ref.read(rolesRepositoryProvider).deleteRole(
-          roleId: role.id,
-          schoolId: currentUser.schoolId,
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete Admin'),
+        content: Text('Are you sure you want to delete ${admin.name}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    if (!context.mounted) return;
+
+    try {
+      await ref.read(userRepositoryProvider).deleteUser(
+            userId: admin.id,
+            schoolId: currentUser.schoolId,
+          );
+      ref.invalidate(schoolAdminsProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Admin deleted successfully')),
         );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content:
+                  Text(e.toString().replaceFirst('Exception: ', ''))),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteRole(
+      BuildContext context,
+      WidgetRef ref,
+      RoleModel role,
+      ) async {
+    final currentUser = await ref.read(currentUserProvider.future);
+    if (currentUser == null) return;
+
+    // 🔥 STEP 1: CONFIRMATION DIALOG
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete Role'),
+        content: Text(
+          'Are you sure you want to delete "${role.name}"?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    // ❌ User cancelled
+    if (confirmed != true) return;
+
+    // 🔥 STEP 2: DELETE AFTER CONFIRMATION
+    final result = await ref.read(rolesRepositoryProvider).deleteRole(
+      roleId: role.id,
+      schoolId: currentUser.schoolId,
+    );
 
     if (result.success) {
       ref.invalidate(rolesProvider);
+
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Role deleted')),
@@ -256,11 +421,134 @@ class _AdminManagementTab extends ConsumerWidget {
       }
     } else {
       if (context.mounted) {
+        final error =
+            result.error?.replaceFirst('Exception: ', '') ?? 'Delete failed';
+
+        final isFkError = error.toLowerCase().contains('assigned') ||
+            error.toLowerCase().contains('foreign key') ||
+            error.toLowerCase().contains('fk_role');
+
+        // 🔥 FK ERROR → ALERT BOX
+        if (isFkError) {
+          showDialog(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: const Text('Cannot Delete Role'),
+              content: Text(error),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(error)),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _showAddDesignationSheet(
+      BuildContext context, WidgetRef ref) async {
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => const _AddDesignationSheet(),
+    );
+
+    if (result == true) {
+      ref.invalidate(designationsProvider);
+    }
+  }
+
+  Future<void> _showEditDesignationSheet(
+      BuildContext context, WidgetRef ref, DesignationModel designation) async {
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _AddDesignationSheet(designation: designation),
+    );
+
+    if (result == true) {
+      ref.invalidate(designationsProvider);
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text(
-                  result.error?.replaceFirst('Exception: ', '') ??
-                      'Delete failed')),
+          const SnackBar(content: Text('Designation updated successfully')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteDesignation(
+      BuildContext context,
+      WidgetRef ref,
+      DesignationModel designation,
+      ) async {
+    // 🔥 STEP 1: CONFIRMATION DIALOG
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete Designation'),
+        content: Text(
+          'Are you sure you want to delete "${designation.name}"?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    // ❌ User cancelled
+    if (confirmed != true) return;
+
+    // 🔥 STEP 2: DELETE AFTER CONFIRMATION
+    final result = await ref
+        .read(designationRepositoryProvider)
+        .deleteDesignation(id: designation.id);
+
+    if (result.success) {
+      ref.invalidate(designationsProvider);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Designation deleted')),
+        );
+      }
+    } else {
+      if (context.mounted) {
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Error'),
+            content: Text(
+              result.error?.replaceFirst('Exception: ', '') ??
+                  'Delete failed',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
         );
       }
     }
@@ -271,11 +559,13 @@ class _AdminCard extends StatelessWidget {
   final UserModel admin;
   final String? creatorName;
   final VoidCallback onEdit;
+  final VoidCallback? onDelete;
 
   const _AdminCard({
     required this.admin,
     required this.onEdit,
     this.creatorName,
+    this.onDelete,
   });
 
   @override
@@ -321,6 +611,13 @@ class _AdminCard extends StatelessWidget {
               icon: const Icon(Icons.edit_outlined, size: 20),
               onPressed: onEdit,
             ),
+            if (onDelete != null)
+              IconButton(
+                icon: const Icon(Icons.delete_outline,
+                    size: 20, color: Colors.redAccent),
+                onPressed: onDelete,
+                tooltip: 'Delete admin',
+              ),
           ],
         ),
       ),
@@ -684,7 +981,7 @@ class _AddRoleSheetState extends ConsumerState<_AddRoleSheet> {
       if (currentUser == null) return;
 
       final inputName = _nameCtrl.text.trim().toLowerCase();
-      final existingRoles = ref.read(rolesProvider).valueOrNull ?? [];
+      final existingRoles = ref.watch(rolesProvider).valueOrNull ?? [];
       final isDuplicate = existingRoles.any((r) =>
           r.name.trim().toLowerCase() == inputName &&
           r.id != widget.role?.id);
@@ -713,14 +1010,37 @@ class _AddRoleSheetState extends ConsumerState<_AddRoleSheet> {
       }
 
       if (result.success) {
-        if (mounted) Navigator.pop(context, true);
-      } else {
         if (mounted) {
+          // 🔥 FORCE REFRESH HERE (NOT ONLY PARENT)
+          ref.invalidate(rolesProvider);
+
+          Navigator.pop(context, true);
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-                content: Text(
-                    result.error?.replaceFirst('Exception: ', '') ??
-                        (_isEditing ? 'Failed to update role' : 'Failed to add role'))),
+              content: Text(_isEditing
+                  ? 'Role updated successfully'
+                  : 'Role added successfully'),
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: const Text('Error'),
+              content: Text(
+                result.error?.replaceFirst('Exception: ', '') ??
+                    'Failed to update role',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
           );
         }
       }
@@ -766,6 +1086,259 @@ class _AddRoleSheetState extends ConsumerState<_AddRoleSheet> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : Text(_isEditing ? 'Save' : 'Add Role'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Designation Card ──────────────────────────────────────────────────────────
+
+class _DesignationCard extends StatelessWidget {
+  final DesignationModel designation;
+  final VoidCallback onDelete;
+  final VoidCallback onEdit;
+
+  const _DesignationCard({
+    required this.designation,
+    required this.onDelete,
+    required this.onEdit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final displayName = toCamelCase(designation.name);
+    return Card(
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: AppColors.adminColor.withAlpha(30),
+          child: Text(
+            displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
+            style: const TextStyle(
+              color: AppColors.adminColor,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        title: Text(displayName),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.edit_outlined, size: 20),
+              onPressed: onEdit,
+              tooltip: 'Edit designation',
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline,
+                  size: 20, color: Colors.redAccent),
+              onPressed: onDelete,
+              tooltip: 'Delete designation',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Add Designation Sheet ─────────────────────────────────────────────────────
+
+class _AddDesignationSheet extends ConsumerStatefulWidget {
+  final DesignationModel? designation;
+
+  const _AddDesignationSheet({this.designation});
+
+  @override
+  ConsumerState<_AddDesignationSheet> createState() =>
+      _AddDesignationSheetState();
+}
+
+class _AddDesignationSheetState extends ConsumerState<_AddDesignationSheet> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameCtrl;
+  bool _saving = false;
+
+  bool get _isEditing => widget.designation != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtrl =
+        TextEditingController(text: widget.designation?.name ?? '');
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    print("DEBUG: SAVE FUNCTION TRIGGERED");
+    final cleanName = _nameCtrl.text.trim();
+
+    if (cleanName.isEmpty) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Error'),
+          content: const Text('User not available. Please login again.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    setState(() => _saving = true);
+
+    try {
+      // ✅ FIX 1: Properly read current user
+      final currentUser = await ref.read(currentUserProvider.future);
+
+      if (currentUser == null) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Session Error'),
+            content: const Text('User not available. Please login again.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+
+      // ✅ FIX 2: Safe designation list read
+      final existingAsync = ref.read(designationsProvider);
+
+      final existing = existingAsync.maybeWhen(
+        data: (data) => data,
+        orElse: () => [],
+      );
+
+      final inputName = cleanName.toLowerCase();
+
+      final isDuplicate = existing.any((d) =>
+      d.name.trim().toLowerCase() == inputName &&
+          d.id != widget.designation?.id);
+
+      if (isDuplicate) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Designation already exists')),
+        );
+        return;
+      }
+
+      // ✅ FIX 3: Proper repository call
+      final DesignationResult result;
+
+      if (_isEditing) {
+        result = await ref
+            .read(designationRepositoryProvider)
+            .updateDesignation(
+          id: widget.designation!.id,
+          name: cleanName,
+        );
+      } else {
+        result = await ref
+            .read(designationRepositoryProvider)
+            .addDesignation(
+          name: cleanName,
+          schoolId: currentUser.schoolId,
+        );
+      }
+
+      // ✅ FIX 4: Guaranteed feedback
+      if (result.success) {
+        if (mounted) {
+          ref.refresh(designationsProvider);
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(_isEditing
+                  ? 'Designation updated successfully'
+                  : 'Designation added successfully'),
+            ),
+          );
+
+          Navigator.pop(context, true);
+        }
+      } else {
+        if (mounted) {
+          final raw = result.error?.replaceFirst('Exception: ', '') ?? '';
+
+          final message = raw.toLowerCase().contains('duplicate') ||
+              raw.toLowerCase().contains('unique')
+              ? 'Designation already exists'
+              : (raw.isNotEmpty
+              ? raw
+              : (_isEditing
+              ? 'Failed to update designation'
+              : 'Failed to add designation'));
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(message)),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottom),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              _isEditing ? 'Edit Designation' : 'Add Designation',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 20),
+            TextFormField(
+              controller: _nameCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Designation Name',
+                prefixIcon: Icon(Icons.work_outline),
+              ),
+              textCapitalization: TextCapitalization.words,
+              autofocus: true,
+            ),
+            const SizedBox(height: 24),
+            FilledButton(
+              onPressed: _saving ? null : _save,
+              child: _saving
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(_isEditing ? 'Save' : 'Add Designation'),
             ),
           ],
         ),

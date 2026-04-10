@@ -27,11 +27,11 @@ String _$currentUserHash() => r'76ceb17a4308026415010d0e90d874f8742a8b9e';
 
 /// Resolves the currently signed-in user's app profile from the [users] table.
 /// Automatically re-runs when auth state changes.
-/// Returns null when unauthenticated or when the user row doesn't exist yet.
+/// Throws [Exception] if not logged in or user row is missing.
 ///
 /// Copied from [currentUser].
 @ProviderFor(currentUser)
-final currentUserProvider = AutoDisposeFutureProvider<UserModel?>.internal(
+final currentUserProvider = AutoDisposeFutureProvider<UserModel>.internal(
   currentUser,
   name: r'currentUserProvider',
   debugGetCreateSourceHash:
@@ -42,6 +42,6 @@ final currentUserProvider = AutoDisposeFutureProvider<UserModel?>.internal(
 
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
-typedef CurrentUserRef = AutoDisposeFutureProviderRef<UserModel?>;
+typedef CurrentUserRef = AutoDisposeFutureProviderRef<UserModel>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

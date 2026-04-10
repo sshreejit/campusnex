@@ -10,6 +10,8 @@ import '../../../core/models/staff_model.dart';
 import '../../auth/auth_notifier.dart';
 import '../../auth/auth_state.dart';
 import '../../dashboard/providers/dashboard_providers.dart';
+import '../../designations/models/designation_model.dart';
+import '../../designations/providers/designation_provider.dart';
 import '../../roles/models/role_model.dart';
 import '../repositories/staff_repository.dart';
 import '../repositories/staff_roles_repository.dart';
@@ -56,6 +58,7 @@ class _StaffScreenState extends ConsumerState<StaffScreen> {
     final staffAsync = ref.watch(staffListProvider);
 
     return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
       body: staffAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),
@@ -220,11 +223,25 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FilterChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => onTap(),
-      visualDensity: VisualDensity.compact,
+    const brandColor = Color(0xFF36454F);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected ? brandColor : Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: brandColor),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : Colors.black87,
+            fontWeight: FontWeight.w500,
+            fontSize: 13,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -249,7 +266,7 @@ class _DesignationDropdown extends StatelessWidget {
         border: Border.all(
           color: value != null
               ? Theme.of(context).colorScheme.primary
-              : Colors.grey.shade400,
+              : Theme.of(context).colorScheme.outline,
         ),
         borderRadius: BorderRadius.circular(16),
         color: value != null
@@ -404,8 +421,10 @@ class _StaffFormSheetState extends ConsumerState<_StaffFormSheet> {
 
   final _empCodeCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
-  final _designationCtrl = TextEditingController();
   final _mobileCtrl = TextEditingController();
+
+  DesignationModel? _selectedDesignation;
+  bool _designationInitialized = false;
 
   bool _loading = false;
   String? _error;
@@ -430,7 +449,6 @@ class _StaffFormSheetState extends ConsumerState<_StaffFormSheet> {
     if (_isEditMode) {
       _empCodeCtrl.text = widget.staff!.empcode;
       _nameCtrl.text = widget.staff!.name;
-      _designationCtrl.text = widget.staff!.designation;
       _mobileCtrl.text = widget.staff!.mobile;
     }
   }
@@ -439,7 +457,6 @@ class _StaffFormSheetState extends ConsumerState<_StaffFormSheet> {
   void dispose() {
     _empCodeCtrl.dispose();
     _nameCtrl.dispose();
-    _designationCtrl.dispose();
     _mobileCtrl.dispose();
     super.dispose();
   }
@@ -480,7 +497,7 @@ class _StaffFormSheetState extends ConsumerState<_StaffFormSheet> {
         schoolId: user.schoolId,
         empCode: _empCodeCtrl.text.trim(),
         name: _nameCtrl.text.trim(),
-        designation: _designationCtrl.text.trim(),
+        designation: _selectedDesignation?.name ?? '',
         mobile: _mobileCtrl.text.trim(),
         photoUrl: photoUrl,
       );
@@ -501,7 +518,7 @@ class _StaffFormSheetState extends ConsumerState<_StaffFormSheet> {
         createdBy: user.id,
         empCode: _empCodeCtrl.text.trim(),
         name: _nameCtrl.text.trim(),
-        designation: _designationCtrl.text.trim(),
+        designation: _selectedDesignation?.name ?? '',
         mobile: _mobileCtrl.text.trim(),
         photoUrl: photoUrl,
       );
@@ -554,7 +571,8 @@ class _StaffFormSheetState extends ConsumerState<_StaffFormSheet> {
                   children: [
                     CircleAvatar(
                       radius: 40,
-                      backgroundColor: Colors.grey.shade200,
+                      backgroundColor:
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
                       backgroundImage: _imageBytes != null
                           ? MemoryImage(_imageBytes!)
                           : (widget.staff?.photoUrl != null
@@ -563,8 +581,11 @@ class _StaffFormSheetState extends ConsumerState<_StaffFormSheet> {
                               : null) as ImageProvider?,
                       child: (_imageBytes == null &&
                               (widget.staff?.photoUrl == null))
-                          ? const Icon(Icons.person,
-                              size: 40, color: Colors.grey)
+                          ? Icon(Icons.person,
+                              size: 40,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant)
                           : null,
                     ),
                     Container(
@@ -598,11 +619,47 @@ class _StaffFormSheetState extends ConsumerState<_StaffFormSheet> {
             ),
             const SizedBox(height: 12),
 
-            TextFormField(
-              controller: _designationCtrl,
-              decoration: const InputDecoration(labelText: 'Designation'),
-              validator: (v) =>
-              (v == null || v.trim().isEmpty) ? 'Required' : null,
+            ref.watch(designationsProvider).when(
+              loading: () => const LinearProgressIndicator(),
+              error: (_, __) => const Text(
+                'Failed to load designations',
+                style: TextStyle(color: Colors.red),
+              ),
+              data: (designations) {
+                if (_isEditMode && !_designationInitialized) {
+                  _designationInitialized = true;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      setState(() {
+                        _selectedDesignation =
+                            designations.cast<DesignationModel?>().firstWhere(
+                              (d) =>
+                                  d!.name.trim().toLowerCase() ==
+                                  widget.staff!.designation.trim().toLowerCase(),
+                              orElse: () => null,
+                            );
+                      });
+                    }
+                  });
+                }
+                return DropdownButtonFormField<DesignationModel>(
+                  value: _selectedDesignation,
+                  decoration: const InputDecoration(
+                    labelText: 'Designation',
+                  ),
+                  items: designations
+                      .map((d) => DropdownMenuItem(
+                            value: d,
+                            child: Text(d.name),
+                          ))
+                      .toList(),
+                  onChanged: (value) =>
+                      setState(() => _selectedDesignation = value),
+                  validator: (_) => _selectedDesignation == null
+                      ? 'Please select a designation'
+                      : null,
+                );
+              },
             ),
             const SizedBox(height: 12),
 
@@ -616,7 +673,9 @@ class _StaffFormSheetState extends ConsumerState<_StaffFormSheet> {
 
             if (_error != null) ...[
               const SizedBox(height: 12),
-              Text(_error!, style: const TextStyle(color: Colors.red)),
+              Text(_error!,
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.error)),
             ],
 
             const SizedBox(height: 20),
@@ -683,22 +742,32 @@ class _StaffCard extends ConsumerWidget {
       ),
     );
 
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      elevation: 4,
+      shadowColor: colorScheme.shadow.withValues(alpha: 0.15),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      color: colorScheme.surface,
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Photo
             CircleAvatar(
               radius: 28,
-              backgroundColor: Colors.grey.shade200,
+              backgroundColor: colorScheme.primaryContainer,
               backgroundImage: staff.photoUrl != null
                   ? CachedNetworkImageProvider(staff.photoUrl!)
                   : null,
               child: staff.photoUrl == null
-                  ? const Icon(Icons.person, size: 28, color: Colors.grey)
+                  ? Icon(Icons.person,
+                      size: 28, color: colorScheme.onPrimaryContainer)
                   : null,
             ),
             const SizedBox(width: 12),
@@ -708,113 +777,157 @@ class _StaffCard extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Header Row
+                  // Header row: name + edit + delete
                   Row(
                     children: [
                       Expanded(
                         child: Text(
-                          staff.empcode,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                          staff.name,
+                          style: textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.onSurface,
+                          ),
                         ),
                       ),
-                      Switch(
-                        value: staff.isActive,
-                        onChanged: onToggleStatus,
-                      ),
                       IconButton(
-                        icon: const Icon(Icons.edit, size: 20),
+                        icon: Icon(Icons.edit,
+                            size: 20, color: colorScheme.primary),
                         onPressed: onEdit,
                         visualDensity: VisualDensity.compact,
                       ),
                       IconButton(
-                        icon: const Icon(Icons.delete_outline, size: 20),
+                        icon: Icon(Icons.delete_outline,
+                            size: 20, color: colorScheme.error),
                         onPressed: onDelete,
                         visualDensity: VisualDensity.compact,
                       ),
                     ],
                   ),
 
-                  const SizedBox(height: 4),
-                  Text(staff.name),
+                  const SizedBox(height: 2),
 
-                  const SizedBox(height: 4),
-
-                  // Designation
-                  Chip(
-                    label: Text(
-                      staff.designation,
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                  ),
-
-                  const SizedBox(height: 4),
-                  Text(staff.mobile),
-
-                  const SizedBox(height: 4),
-
+                  // Designation · Mobile
                   Text(
-                    staff.isActive ? 'Active' : 'Inactive',
-                    style: TextStyle(
-                      color: staff.isActive ? Colors.green : Colors.red,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 12,
+                    '${staff.designation} • ${staff.mobile}',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
 
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
 
-                  // 🔥 ROLES DISPLAY (NEW)
+                  // Role + Status + Toggle — single row
                   rolesAsync.when(
-                    loading: () => const SizedBox.shrink(),
-                    error: (_, __) => const SizedBox.shrink(),
-                    data: (roles) {
-                      if (roles.isEmpty) return const SizedBox.shrink();
-
-                      return Wrap(
-                        spacing: 6,
-                        runSpacing: -8,
-                        children: roles.map((role) {
-                          return Chip(
-                            label: Text(
-                              role.roleName.isNotEmpty
-                                  ? role.roleName
-                                  : role.roleId,
-                              style: const TextStyle(fontSize: 11),
-                            ),
-                            backgroundColor: Colors.blue.shade50,
-                          );
-                        }).toList(),
-                      );
-                    },
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // Assign Role Button
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: OutlinedButton.icon(
-                      onPressed: onAssignRole,
-                      icon: const Icon(Icons.assignment_ind_outlined, size: 16),
-                      label: const Text(
-                        'Assign Role',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                      ),
+                    loading: () => _roleStatusToggleRow(
+                      roleName: null,
+                      isActive: staff.isActive,
+                      onAssignRole: onAssignRole,
+                    ),
+                    error: (_, __) => _roleStatusToggleRow(
+                      roleName: null,
+                      isActive: staff.isActive,
+                      onAssignRole: onAssignRole,
+                    ),
+                    data: (roles) => _roleStatusToggleRow(
+                      roleName: roles.isNotEmpty
+                          ? (roles.first.roleName.isNotEmpty
+                              ? roles.first.roleName
+                              : null)
+                          : null,
+                      isActive: staff.isActive,
+                      onAssignRole: onAssignRole,
                     ),
                   ),
+
                 ],
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _roleStatusToggleRow({
+    required String? roleName,
+    required bool isActive,
+    required VoidCallback onAssignRole,
+  }) {
+    const brandColor = Color(0xFF36454F);
+    return Row(
+      children: [
+        // Interactive role chip
+        GestureDetector(
+          onTap: onAssignRole,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: roleName == null
+                  ? Colors.orange.withValues(alpha: 0.15)
+                  : brandColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              roleName ?? 'Assign Role',
+              style: TextStyle(
+                color: roleName == null ? Colors.orange : brandColor,
+                fontWeight: FontWeight.w500,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ),
+
+        // Edit icon (only when role exists)
+        if (roleName != null) ...[
+          const SizedBox(width: 2),
+          SizedBox(
+            width: 28,
+            height: 28,
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              icon: const Icon(Icons.edit, size: 15),
+              color: brandColor.withValues(alpha: 0.6),
+              onPressed: onAssignRole,
+            ),
+          ),
+        ],
+
+        const SizedBox(width: 6),
+
+        // Status badge
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: isActive
+                ? Colors.green.withValues(alpha: 0.15)
+                : Colors.red.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            isActive ? 'Active' : 'Inactive',
+            style: TextStyle(
+              color: isActive ? Colors.green.shade700 : Colors.red.shade700,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
+        ),
+
+        const Spacer(),
+
+        // Toggle
+        Switch(
+          value: isActive,
+          activeColor: Colors.white,
+          activeTrackColor: const Color(0xFF36454F).withOpacity(0.5),
+          inactiveThumbColor: Colors.white,
+          inactiveTrackColor: Colors.grey.shade300,
+          splashRadius: 16,
+          onChanged: onToggleStatus,
+        ),
+      ],
     );
   }
 }
@@ -919,9 +1032,10 @@ class _AssignRoleSheetState extends ConsumerState<_AssignRoleSheet> {
 
           rolesAsync.when(
             loading: () => const LinearProgressIndicator(),
-            error: (_, __) => const Text(
+            error: (_, __) => Text(
               'Failed to load roles',
-              style: TextStyle(color: Colors.red),
+              style: TextStyle(
+                  color: Theme.of(context).colorScheme.error),
             ),
             data: (roles) => DropdownButtonFormField<RoleModel>(
               value: _selectedRole,

@@ -21,6 +21,9 @@ class RolesRepository {
 
   RolesRepository(this._supabase);
 
+  // ─────────────────────────────────────────────
+  // GET ROLES
+  // ─────────────────────────────────────────────
   Future<List<RoleModel>> getRolesBySchool(String schoolId) async {
     try {
       final response = await _supabase
@@ -38,6 +41,9 @@ class RolesRepository {
     }
   }
 
+  // ─────────────────────────────────────────────
+  // ADD ROLE
+  // ─────────────────────────────────────────────
   Future<RoleResult> addRole({
     required String name,
     required String schoolId,
@@ -45,16 +51,19 @@ class RolesRepository {
   }) async {
     try {
       await _supabase.from(AppConstants.rolesTable).insert({
-        'name': name,
+        'name': name.trim(),
         'school_id': schoolId,
         'created_by': createdBy,
       });
+
       return RoleResult(success: true);
     } on PostgrestException catch (e) {
       debugPrint('❌ addRole error: $e');
+
       if (e.code == '23505') {
         return RoleResult(success: false, error: 'Role already exists');
       }
+
       return RoleResult(success: false, error: e.message);
     } catch (e) {
       debugPrint('❌ addRole error: $e');
@@ -62,23 +71,47 @@ class RolesRepository {
     }
   }
 
+  // ─────────────────────────────────────────────
+  // UPDATE ROLE (FIXED)
+  // ─────────────────────────────────────────────
   Future<RoleResult> updateRole({
     required String roleId,
     required String schoolId,
     required String name,
   }) async {
+    debugPrint('DEBUG ROLE ID: $roleId');
+    debugPrint('DEBUG SCHOOL ID: $schoolId');
+    final trimmed = name.trim();
+
+    if (trimmed.isEmpty) {
+      return RoleResult(success: false, error: 'Role name cannot be empty');
+    }
+
     try {
-      await _supabase
+      final response = await _supabase
           .from(AppConstants.rolesTable)
-          .update({'name': name})
+          .update({'name': trimmed})
           .eq('id', roleId)
-          .eq('school_id', schoolId);
+          .eq('school_id', schoolId)
+          .select()
+          .maybeSingle();
+
+      // 🔴 CRITICAL CHECK
+      if (response == null) {
+        return RoleResult(
+          success: false,
+          error: 'Role update failed (no matching record)',
+        );
+      }
+
       return RoleResult(success: true);
     } on PostgrestException catch (e) {
       debugPrint('❌ updateRole error: $e');
+
       if (e.code == '23505') {
         return RoleResult(success: false, error: 'Role already exists');
       }
+
       return RoleResult(success: false, error: e.message);
     } catch (e) {
       debugPrint('❌ updateRole error: $e');
@@ -86,6 +119,9 @@ class RolesRepository {
     }
   }
 
+  // ─────────────────────────────────────────────
+  // DELETE ROLE (WITH FK HANDLING)
+  // ─────────────────────────────────────────────
   Future<RoleResult> deleteRole({
     required String roleId,
     required String schoolId,
@@ -96,10 +132,23 @@ class RolesRepository {
           .delete()
           .eq('id', roleId)
           .eq('school_id', schoolId);
+
       return RoleResult(success: true);
     } catch (e) {
       debugPrint('❌ deleteRole error: $e');
-      return RoleResult(success: false, error: e.toString());
+
+      final message = e.toString().toLowerCase();
+
+      if (message.contains('fk_role') ||
+          message.contains('foreign key')) {
+        return RoleResult(
+          success: false,
+          error:
+          'Role is already assigned to staff. Please remove it from staff before deleting.',
+        );
+      }
+
+      return RoleResult(success: false, error: 'Failed to delete role');
     }
   }
 }

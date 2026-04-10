@@ -27,6 +27,8 @@ Future<void> main() async {
   );
 
   await dotenv.load(fileName: '.env');
+  print('SUPABASE_URL: ${dotenv.env['SUPABASE_URL']}');
+  print('SUPABASE_KEY: ${dotenv.env['SUPABASE_ANON_KEY']}');
 
   await Supabase.initialize(
     url: SupabaseConstants.supabaseUrl,
@@ -51,7 +53,7 @@ class CampusNexApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'CampusNex',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
+      theme: AppTheme.buildTheme(const Color(0xFF36454F)),
       routerConfig: router,
     );
   }

@@ -21,6 +21,7 @@ class AppConstants {
   static const String sessionsTable = 'sessions';
   static const String rolesTable = 'roles';
   static const String staffRolesTable = 'staff_roles';
+  static const String designationsTable = 'designations';
 
   // Supabase storage buckets
   static const String studentPhotosBucket = 'student_photos';

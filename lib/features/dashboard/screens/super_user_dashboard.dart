@@ -32,11 +32,25 @@ class SuperUserDashboard extends ConsumerWidget {
           title: const Text('Super User Dashboard'),
           automaticallyImplyLeading: false,
           actions: [
-            IconButton(
-              tooltip: 'Sign out',
-              icon: const Icon(Icons.logout),
-              onPressed: () =>
-                  ref.read(authNotifierProvider.notifier).signOut(),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              onSelected: (value) {
+                if (value == 'logout') {
+                  ref.read(authNotifierProvider.notifier).signOut();
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'logout',
+                  child: Row(
+                    children: [
+                      Icon(Icons.logout, size: 20),
+                      SizedBox(width: 12),
+                      Text('Logout'),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
           bottom: const TabBar(

@@ -125,32 +125,6 @@ class Result {
 
 ---
 
-## 🗑️ DELETE OPERATION RULES (STRICT)
-
-* ALL delete actions MUST require user confirmation
-* ALWAYS show confirmation dialog before delete
-* MUST include:
-  - Clear message (what is being deleted)
-  - Cancel option
-  - Delete/Confirm option (highlighted in red)
-* If user cancels → DO NOTHING
-* NEVER perform direct delete from UI without confirmation
-* Error messages MUST be user-friendly (no raw DB errors)
-
-Example:
-
-- "Are you sure you want to delete this role?"
-- "This action cannot be undone"
-
-This rule applies to ALL modules:
-- Roles
-- Designations
-- Staff (if applicable)
-- Admins
-- Any future CRUD entities
-
----
-
 ## 👨‍🏫 STAFF MODULE RULES
 
 * Staff MUST link to users (user_id)

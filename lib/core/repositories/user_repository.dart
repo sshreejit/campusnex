@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -384,12 +385,22 @@ UserRepository userRepository(Ref ref) {
   return UserRepository(SupabaseService.client);
 }
 
+
 @riverpod
-Future<UserModel?> currentUser(Ref ref) async {
-  ref.watch(authStateChangesProvider);
+Future<UserModel> currentUser(Ref ref) async {
+  final prefs = await SharedPreferences.getInstance();
+  final userId = prefs.getString(AppConstants.prefUserId);
 
-  final authUser = SupabaseService.currentUser;
-  if (authUser == null) return null;
+  if (userId == null) {
+    throw Exception('User not available');
+  }
 
-  return ref.read(userRepositoryProvider).getUserByAuthId(authUser.id);
+  final user =
+  await ref.read(userRepositoryProvider).getUserById(userId);
+
+  if (user == null) {
+    throw Exception('User not found');
+  }
+
+  return user;
 }
