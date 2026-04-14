@@ -104,7 +104,11 @@ FutureProvider.autoDispose<SchoolOverview>((ref) async {
   final totalStudents = await studentRepo.getCount(schoolId);
   final studentsPerClass = await studentRepo.getCountPerClass(schoolId);
 
-  final staffList = await staffRepo.getStaffList(schoolId); // ✅ FIX
+  final staffList = await staffRepo.getStaffList(
+    schoolId: schoolId,
+    from: 0,
+    to: 49,
+  );// ✅ FIX
   final totalStaff = staffList.length; // ✅ FIX
 
   final admins =
@@ -187,20 +191,71 @@ FutureProvider.autoDispose<List<UserModel>>((ref) async {
 
 /// All staff (active + inactive) — used by StaffScreen for toggle management
 final staffListProvider =
-FutureProvider.autoDispose<List<StaffModel>>((ref) async {
-  var user = await ref.watch(currentUserProvider.future);
+StateNotifierProvider.autoDispose<StaffListNotifier, AsyncValue<List<StaffModel>>>(
+      (ref) {
+    final repo = ref.read(staffRepositoryProvider);
+    final userAsync = ref.watch(currentUserProvider);
 
-  if (user == null) {
-    final authState = ref.watch(authNotifierProvider);
-    if (authState is AuthSuccess) user = authState.user;
+    return StaffListNotifier(repo, userAsync);
+  },
+);
+
+class StaffListNotifier extends StateNotifier<AsyncValue<List<StaffModel>>> {
+  final StaffRepository _repo;
+  final AsyncValue<UserModel?> _userAsync;
+
+  StaffListNotifier(this._repo, this._userAsync)
+      : super(const AsyncValue.loading()) {
+    loadInitial();
   }
 
-  if (user == null) return [];
+  int _page = 0;
+  final int _limit = 20;
+  bool _hasMore = true;
+  List<StaffModel> _all = [];
 
-  return ref
-      .read(staffRepositoryProvider)
-      .getAllStaffList(user.schoolId);
-});
+  bool get hasMore => _hasMore;
+
+  Future<void> loadInitial() async {
+    state = const AsyncValue.loading();
+    _page = 0;
+    _all = [];
+    _hasMore = true;
+    await loadMore();
+  }
+
+  Future<void> loadMore() async {
+    if (!_hasMore) return;
+
+    final user = _userAsync.value;
+    if (user == null) {
+      state = AsyncValue.error('User not found', StackTrace.current);
+      return;
+    }
+
+    final from = _page * _limit;
+    final to = from + _limit - 1;
+
+    try {
+      final newData = await _repo.getStaffList(
+        schoolId: user.schoolId,
+        from: from,
+        to: to,
+      );
+
+      if (newData.length < _limit) {
+        _hasMore = false;
+      }
+
+      _all.addAll(newData);
+      _page++;
+
+      state = AsyncValue.data(_all);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
+  }
+}
 
 /// ✅ FIXED: Staff list provider
 final schoolStaffProvider =
@@ -215,8 +270,12 @@ FutureProvider.autoDispose<List<StaffModel>>((ref) async {
   if (user == null) return [];
 
   return ref
-      .read(staffRepositoryProvider)
-      .getStaffList(user.schoolId);
+    .read(staffRepositoryProvider)
+    .getStaffList(
+      schoolId: user.schoolId,
+      from: 0,
+      to: 49,
+    );
 });
 
 /// Student list

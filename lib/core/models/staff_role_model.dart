@@ -26,22 +26,25 @@ class StaffRoleModel {
 
   factory StaffRoleModel.fromJson(Map<String, dynamic> json) {
     return StaffRoleModel(
-      id: json['id'] as String,
-      schoolId: json['school_id'] as String,
-      staffId: json['staff_id'] as String,
-      roleId: json['role_id'] as String,
+      id: json['id']?.toString() ?? '',
 
-      /// ✅ SAFE EXTRACTION (handles JOIN)
-      roleName: (json['role'] != null &&
-          json['role'] is Map &&
-          json['role']['name'] != null)
-          ? json['role']['name'] as String
-          : '',
+      schoolId: json['school_id']?.toString() ?? '',
 
-      session: json['session'] as String,
-      className: json['class_name'] as String?,
-      section: json['section'] as String?,
-      createdAt: DateTime.parse(json['created_at'] as String),
+      staffId: json['staff_id']?.toString() ?? '',
+
+      roleId: json['role_id']?.toString() ?? '',
+
+      // ✅ SAFE JOIN EXTRACTION
+      roleName: json['role']?['name']?.toString() ?? '',
+
+      session: json['session']?.toString() ?? '',
+
+      className: json['class_name']?.toString(),
+      section: json['section']?.toString(),
+
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'])
+          : DateTime.now(),
     );
   }
 

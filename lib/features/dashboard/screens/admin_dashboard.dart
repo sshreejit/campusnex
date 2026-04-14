@@ -1,5 +1,9 @@
+import 'package:campusnex/core/models/class_model.dart';
+import '../../classes/providers/class_provider.dart';
+import '../../classes/repositories/class_repository.dart';
 import '../../staff/screens/staff_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../core/utils/text_utils.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -16,7 +20,6 @@ import '../../roles/models/role_model.dart';
 import '../../roles/repositories/roles_repository.dart';
 import '../providers/dashboard_providers.dart';
 
-
 class AdminDashboard extends ConsumerWidget {
   const AdminDashboard({super.key});
 
@@ -28,92 +31,104 @@ class AdminDashboard extends ConsumerWidget {
     final canManageAdmins = currentUser?.canCreateAdmin ?? false;
 
     final tabs = [
-      const Tab(icon: Icon(Icons.badge), text: 'Staff'),
-      const Tab(icon: Icon(Icons.school), text: 'Students'),
-      if (canManageAdmins)
-        const Tab(icon: Icon(Icons.admin_panel_settings), text: 'Admins'),
+      const Tab(text: 'Staff'),
+      const Tab(text: 'Students'),
+      if (canManageAdmins) const Tab(text: 'Management'),
     ];
 
     final tabViews = [
       const StaffScreen(),
-      const _StudentManagementTab(),
+      _StudentManagementTab(), // Removed const
       if (canManageAdmins) const _AdminManagementTab(),
     ];
 
     return DefaultTabController(
       length: tabs.length,
-      child: Scaffold(
-        appBar: AppBar(
-          elevation: 0,
-          backgroundColor: Colors.white,
-          titleSpacing: 16,
-          automaticallyImplyLeading: false,
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.blue,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (canManageAdmins) ...[
-                      const Icon(Icons.star, size: 14, color: Colors.white),
-                      const SizedBox(width: 4),
-                    ],
-                    const Text(
-                      'Admin',
-                      style: TextStyle(
-                        color: Colors.white,
+      child: Container(
+        color: AppColors.charcoalSteel,
+        padding: const EdgeInsets.all(4.0),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Scaffold(
+            backgroundColor: AppColors.background,
+            appBar: AppBar(
+              backgroundColor: AppColors.charcoalSteel,
+              elevation: 0,
+              titleSpacing: 12,
+              automaticallyImplyLeading: false,
+              toolbarHeight: 50,
+              title: Row(
+                children: [
+                  _buildAdminBadge(canManageAdmins),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Welcome, $userName',
+                      style: const TextStyle(
+                        fontSize: 14,
                         fontWeight: FontWeight.w600,
+                        color: Colors.white,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Welcome, $userName',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black,
                   ),
-                  overflow: TextOverflow.ellipsis,
-                ),
+                ],
               ),
-            ],
-          ),
-          actions: [
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert),
-              onSelected: (value) {
-                if (value == 'logout') {
-                  ref.read(authNotifierProvider.notifier).signOut();
-                }
-              },
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'logout',
-                  child: Row(
-                    children: [
-                      Icon(Icons.logout, size: 20),
-                      SizedBox(width: 12),
-                      Text('Logout'),
-                    ],
-                  ),
-                ),
+              actions: [
+                _buildActionMenu(ref),
               ],
+              bottom: TabBar(
+                tabs: tabs,
+                isScrollable: false,
+                indicatorColor: Colors.white,
+                indicatorWeight: 3,
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.white60,
+                labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
             ),
-          ],
-          bottom: TabBar(tabs: tabs),
+            body: TabBarView(children: tabViews),
+          ),
         ),
-        backgroundColor: AppColors.background,
-        body: TabBarView(children: tabViews),
       ),
+    );
+  }
+
+  Widget _buildAdminBadge(bool isManager) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.white30),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isManager) ...[
+            const Icon(Icons.star, size: 12, color: AppColors.warning),
+            const SizedBox(width: 4),
+          ],
+          const Text(
+            'ADMIN',
+            style: TextStyle(color: Colors.white, fontSize: 10, letterSpacing: 1, fontWeight: FontWeight.w800),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionMenu(WidgetRef ref) {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert, color: Colors.white),
+      onSelected: (value) => value == 'logout' ? ref.read(authNotifierProvider.notifier).signOut() : null,
+      itemBuilder: (context) => [
+        const PopupMenuItem(
+          value: 'logout',
+          child: Row(children: [Icon(Icons.logout, size: 18, color: AppColors.error), SizedBox(width: 12), Text('Logout')]),
+        ),
+      ],
     );
   }
 }
@@ -126,213 +141,142 @@ class _AdminManagementTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final adminsAsync = ref.watch(schoolAdminsProvider);
-    final creatorNames =
-        ref.watch(adminCreatorNamesProvider).valueOrNull ?? {};
+    final creatorNames = ref.watch(adminCreatorNamesProvider).valueOrNull ?? {};
     final rolesAsync = ref.watch(rolesProvider);
     final designationsAsync = ref.watch(designationsProvider);
+    final classesAsync = ref.watch(classesProvider);
     final authState = ref.watch(authNotifierProvider);
     final currentUser = authState is AuthSuccess ? authState.user : null;
     final isManager = currentUser?.canCreateAdmin ?? false;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+      padding: const EdgeInsets.all(12),
       children: [
-        // ── Admins Section ──
-        _SectionHeader(
-          title: 'Admins',
-          onAdd: () => _showAddAdminSheet(context, ref),
-        ),
-        const SizedBox(height: 8),
+        _SectionHeader(title: 'ADMINISTRATORS', onAdd: () => _showAddAdminSheet(context, ref)),
         adminsAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('Error: $e')),
-          data: (admins) {
-            if (admins.isEmpty) {
-              return const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: Center(child: Text('No admins yet.')),
-              );
-            }
-            return Column(
-              children: admins
-                  .map((admin) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: _AdminCard(
-                          admin: admin,
-                          creatorName: admin.createdBy != null
-                              ? creatorNames[admin.createdBy]
-                              : null,
-                          onEdit: () =>
-                              _showEditAdminSheet(context, ref, admin),
-                          onDelete: isManager && admin.id != currentUser?.id
-                              ? () => _deleteAdmin(context, ref, admin)
-                              : null,
-                        ),
-                      ))
-                  .toList(),
-            );
-          },
+          loading: () => const LinearProgressIndicator(),
+          error: (e, _) => Text('Error: $e'),
+          data: (admins) => Column(
+            children: admins.map((admin) => _AdminCard(
+              admin: admin,
+              creatorName: creatorNames[admin.createdBy],
+              onEdit: () => _showEditAdminSheet(context, ref, admin),
+              onDelete: isManager && admin.id != currentUser?.id ? () => _deleteAdmin(context, ref, admin) : null,
+            )).toList(),
+          ),
         ),
-        const SizedBox(height: 24),
-        // ── Roles Section ──
-        _SectionHeader(
-          title: 'Roles',
-          onAdd: () => _showAddRoleSheet(context, ref),
-        ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 20),
+        _SectionHeader(title: 'ROLES', onAdd: () => _showAddRoleSheet(context, ref)),
         rolesAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('Error: $e')),
-          data: (roles) {
-            if (roles.isEmpty) {
-              return const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: Center(child: Text('No roles yet.')),
-              );
-            }
-            return Column(
-              children: roles
-                  .map((role) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: _RoleCard(
-                          role: role,
-                          onDelete: () => _deleteRole(context, ref, role),
-                          onEdit: () => _showEditRoleSheet(context, ref, role),
-                        ),
-                      ))
-                  .toList(),
-            );
-          },
+          loading: () => const SizedBox(),
+          error: (e, _) => Text('Error: $e'),
+          data: (roles) => Column(
+            children: roles.map((role) => _RoleCard(
+              role: role,
+              onDelete: () => _deleteRole(context, ref, role),
+              onEdit: () => _showEditRoleSheet(context, ref, role),
+            )).toList(),
+          ),
         ),
-        const SizedBox(height: 24),
-        // ── Designations Section ──
-        _SectionHeader(
-          title: 'Designations',
-          onAdd: () => _showAddDesignationSheet(context, ref),
-        ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 20),
+        _SectionHeader(title: 'DESIGNATIONS', onAdd: () => _showAddDesignationSheet(context, ref)),
         designationsAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('Error: $e')),
-          data: (designations) {
-            if (designations.isEmpty) {
-              return const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: Center(child: Text('No designations yet.')),
-              );
-            }
-            return Column(
-              children: designations
-                  .map((d) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: _DesignationCard(
-                          designation: d,
-                          onDelete: () =>
-                              _deleteDesignation(context, ref, d),
-                          onEdit: () =>
-                              _showEditDesignationSheet(context, ref, d),
+          loading: () => const SizedBox(),
+          error: (e, _) => Text('Error: $e'),
+          data: (designations) => Column(
+            children: designations.map((d) => _DesignationCard(
+              designation: d,
+              onDelete: () => _deleteDesignation(context, ref, d),
+              onEdit: () => _showEditDesignationSheet(context, ref, d),
+            )).toList(),
+          ),
+        ),
+
+        const SizedBox(height: 20),
+        _SectionHeader(
+          title: 'CLASSES',
+          onAdd: () => _showClassSheet(context, ref),
+        ),
+        classesAsync.when(
+          loading: () => const SizedBox(),
+          error: (e, _) => Text('Error: $e'),
+          data: (classes) => Column(
+            children: classes.map((c) {
+              return Card(
+                child: ListTile(
+                  dense: true,
+                  title: Text(
+                    '${c.className} - ${c.section}',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit, size: 18),
+                        onPressed: () => _showClassSheet(
+                          context,
+                          ref,
+                          classModel: c,
                         ),
-                      ))
-                  .toList(),
-            );
-          },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, size: 18, color: AppColors.error),
+                        onPressed: () => _deleteClass(context, ref, c),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
         ),
       ],
     );
   }
 
-  Future<void> _showAddAdminSheet(BuildContext context, WidgetRef ref) async {
-    final result = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => const _AddAdminSheet(),
-    );
+  // Helper Scopes
+  void _showAddAdminSheet(BuildContext context, WidgetRef ref) => showModalBottomSheet(
+    context: context, isScrollControlled: true, builder: (_) => _AddAdminSheet(), // Removed const
+  ).then((val) => val == true ? ref.invalidate(schoolAdminsProvider) : null);
 
-    if (result == true) {
-      ref.invalidate(schoolAdminsProvider);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Admin added successfully')),
-        );
-      }
-    }
-  }
+  void _showEditAdminSheet(BuildContext context, WidgetRef ref, UserModel admin) => showModalBottomSheet(
+    context: context, isScrollControlled: true, builder: (_) => _EditAdminSheet(admin: admin),
+  ).then((val) => val == true ? ref.invalidate(schoolAdminsProvider) : null);
 
-  Future<void> _showEditAdminSheet(
-      BuildContext context, WidgetRef ref, UserModel admin) async {
-    final result = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => _EditAdminSheet(admin: admin),
-    );
+  void _showAddRoleSheet(BuildContext context, WidgetRef ref) => showModalBottomSheet(
+    context: context, isScrollControlled: true, builder: (_) => _AddRoleSheet(), // Removed const
+  ).then((val) => val == true ? ref.invalidate(rolesProvider) : null);
 
-    if (result == true) {
-      ref.invalidate(schoolAdminsProvider);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Admin updated successfully')),
-        );
-      }
-    }
-  }
+  void _showEditRoleSheet(BuildContext context, WidgetRef ref, RoleModel role) => showModalBottomSheet(
+    context: context, isScrollControlled: true, builder: (_) => _AddRoleSheet(role: role),
+  ).then((val) => val == true ? ref.invalidate(rolesProvider) : null);
 
-  Future<void> _showAddRoleSheet(BuildContext context, WidgetRef ref) async {
-    final result = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => const _AddRoleSheet(),
-    );
+  void _showAddDesignationSheet(BuildContext context, WidgetRef ref) => showModalBottomSheet(
+    context: context, isScrollControlled: true, builder: (_) => _AddDesignationSheet(), // Removed const
+  ).then((val) => val == true ? ref.invalidate(designationsProvider) : null);
 
-    if (result == true) {
-      ref.invalidate(rolesProvider);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Role added successfully')),
-        );
-      }
-    }
-  }
+  void _showEditDesignationSheet(BuildContext context, WidgetRef ref, DesignationModel d) => showModalBottomSheet(
+    context: context, isScrollControlled: true, builder: (_) => _AddDesignationSheet(designation: d),
+  ).then((val) => val == true ? ref.invalidate(designationsProvider) : null);
 
-  Future<void> _showEditRoleSheet(
-      BuildContext context, WidgetRef ref, RoleModel role) async {
-    final result = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => _AddRoleSheet(role: role),
-    );
+  void _showClassSheet(BuildContext context, WidgetRef ref, {ClassModel? classModel,}) =>
+      showModalBottomSheet(context: context, isScrollControlled: true,builder: (_) => _ClassSheet(classModel: classModel),
+      ).then((val) => val == true ? ref.invalidate(classesProvider) : null);
 
-    if (result == true) {
-      ref.invalidate(rolesProvider);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Role updated successfully')),
-        );
-      }
-    }
-  }
-
+  // CRUD Logic
   Future<void> _deleteAdmin(
-      BuildContext context, WidgetRef ref, UserModel admin) async {
-    final currentUser = await ref.read(currentUserProvider.future);
-    if (currentUser == null) return;
-
+      BuildContext context,
+      WidgetRef ref,
+      UserModel admin,
+      ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Delete Admin'),
-        content: Text('Are you sure you want to delete ${admin.name}?'),
+        content: Text(
+          'Are you sure you want to delete "${admin.name}"?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -348,27 +292,21 @@ class _AdminManagementTab extends ConsumerWidget {
     );
 
     if (confirmed != true) return;
-    if (!context.mounted) return;
 
-    try {
-      await ref.read(userRepositoryProvider).deleteUser(
-            userId: admin.id,
-            schoolId: currentUser.schoolId,
-          );
-      ref.invalidate(schoolAdminsProvider);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Admin deleted successfully')),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content:
-                  Text(e.toString().replaceFirst('Exception: ', ''))),
-        );
-      }
+    final user = await ref.read(currentUserProvider.future);
+    if (user == null) return;
+
+    await ref.read(userRepositoryProvider).deleteUser(
+      userId: admin.id,
+      schoolId: user.schoolId,
+    );
+
+    ref.invalidate(schoolAdminsProvider);
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Admin deleted')),
+      );
     }
   }
 
@@ -377,10 +315,6 @@ class _AdminManagementTab extends ConsumerWidget {
       WidgetRef ref,
       RoleModel role,
       ) async {
-    final currentUser = await ref.read(currentUserProvider.future);
-    if (currentUser == null) return;
-
-    // 🔥 STEP 1: CONFIRMATION DIALOG
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -402,13 +336,14 @@ class _AdminManagementTab extends ConsumerWidget {
       ),
     );
 
-    // ❌ User cancelled
     if (confirmed != true) return;
 
-    // 🔥 STEP 2: DELETE AFTER CONFIRMATION
+    final user = await ref.read(currentUserProvider.future);
+    if (user == null) return;
+
     final result = await ref.read(rolesRepositoryProvider).deleteRole(
       roleId: role.id,
-      schoolId: currentUser.schoolId,
+      schoolId: user.schoolId,
     );
 
     if (result.success) {
@@ -421,69 +356,18 @@ class _AdminManagementTab extends ConsumerWidget {
       }
     } else {
       if (context.mounted) {
-        final error =
-            result.error?.replaceFirst('Exception: ', '') ?? 'Delete failed';
-
-        final isFkError = error.toLowerCase().contains('assigned') ||
-            error.toLowerCase().contains('foreign key') ||
-            error.toLowerCase().contains('fk_role');
-
-        // 🔥 FK ERROR → ALERT BOX
-        if (isFkError) {
-          showDialog(
-            context: context,
-            builder: (_) => AlertDialog(
-              title: const Text('Cannot Delete Role'),
-              content: Text(error),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('OK'),
-                ),
-              ],
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(error)),
-          );
-        }
-      }
-    }
-  }
-
-  Future<void> _showAddDesignationSheet(
-      BuildContext context, WidgetRef ref) async {
-    final result = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => const _AddDesignationSheet(),
-    );
-
-    if (result == true) {
-      ref.invalidate(designationsProvider);
-    }
-  }
-
-  Future<void> _showEditDesignationSheet(
-      BuildContext context, WidgetRef ref, DesignationModel designation) async {
-    final result = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => _AddDesignationSheet(designation: designation),
-    );
-
-    if (result == true) {
-      ref.invalidate(designationsProvider);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Designation updated successfully')),
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Error'),
+            content: Text(result.error ?? 'Failed to delete role'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
         );
       }
     }
@@ -492,15 +376,14 @@ class _AdminManagementTab extends ConsumerWidget {
   Future<void> _deleteDesignation(
       BuildContext context,
       WidgetRef ref,
-      DesignationModel designation,
+      DesignationModel d,
       ) async {
-    // 🔥 STEP 1: CONFIRMATION DIALOG
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Delete Designation'),
         content: Text(
-          'Are you sure you want to delete "${designation.name}"?',
+          'Are you sure you want to delete "${d.name}"?',
         ),
         actions: [
           TextButton(
@@ -516,13 +399,11 @@ class _AdminManagementTab extends ConsumerWidget {
       ),
     );
 
-    // ❌ User cancelled
     if (confirmed != true) return;
 
-    // 🔥 STEP 2: DELETE AFTER CONFIRMATION
     final result = await ref
         .read(designationRepositoryProvider)
-        .deleteDesignation(id: designation.id);
+        .deleteDesignation(id: d.id);
 
     if (result.success) {
       ref.invalidate(designationsProvider);
@@ -538,10 +419,7 @@ class _AdminManagementTab extends ConsumerWidget {
           context: context,
           builder: (_) => AlertDialog(
             title: const Text('Error'),
-            content: Text(
-              result.error?.replaceFirst('Exception: ', '') ??
-                  'Delete failed',
-            ),
+            content: Text(result.error ?? 'Delete failed'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
@@ -553,6 +431,40 @@ class _AdminManagementTab extends ConsumerWidget {
       }
     }
   }
+
+  Future<void> _deleteClass(
+      BuildContext context,
+      WidgetRef ref,
+      ClassModel c,
+      ) async {
+    final result =
+    await ref.read(classRepositoryProvider).deleteClass(c.id);
+
+    if (result.success) {
+      ref.invalidate(classesProvider);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Class deleted')),
+        );
+      }
+    }
+  }
+}
+
+// ── Components & Sheets (Unified) ──────────────────────────────────────────────
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final VoidCallback onAdd;
+  const _SectionHeader({required this.title, required this.onAdd});
+  @override
+  Widget build(BuildContext context) {
+    return Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+      Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.textSecondary)),
+      TextButton.icon(onPressed: onAdd, icon: const Icon(Icons.add, size: 14), label: const Text('ADD', style: TextStyle(fontSize: 11))),
+    ]);
+  }
 }
 
 class _AdminCard extends StatelessWidget {
@@ -560,187 +472,73 @@ class _AdminCard extends StatelessWidget {
   final String? creatorName;
   final VoidCallback onEdit;
   final VoidCallback? onDelete;
-
-  const _AdminCard({
-    required this.admin,
-    required this.onEdit,
-    this.creatorName,
-    this.onDelete,
-  });
-
+  const _AdminCard({required this.admin, required this.onEdit, this.creatorName, this.onDelete});
   @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: AppColors.adminColor.withAlpha(30),
-          child: Text(
-            admin.name.isNotEmpty ? admin.name[0].toUpperCase() : '?',
-            style: const TextStyle(
-              color: AppColors.adminColor,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        title: Text(admin.name),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(admin.mobile),
-            if (creatorName != null)
-              Text(
-                'Created by: $creatorName',
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-          ],
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (admin.canCreateAdmin)
-              const Chip(
-                label: Text('Manager',
-                    style: TextStyle(fontSize: 11, color: Colors.white)),
-                backgroundColor: AppColors.adminColor,
-                padding: EdgeInsets.zero,
-              ),
-            IconButton(
-              icon: const Icon(Icons.edit_outlined, size: 20),
-              onPressed: onEdit,
-            ),
-            if (onDelete != null)
-              IconButton(
-                icon: const Icon(Icons.delete_outline,
-                    size: 20, color: Colors.redAccent),
-                onPressed: onDelete,
-                tooltip: 'Delete admin',
-              ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Card(child: ListTile(
+    dense: true, visualDensity: VisualDensity.compact,
+    title: Text(admin.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+    subtitle: Text(admin.mobile, style: const TextStyle(fontSize: 11)),
+    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+      IconButton(icon: const Icon(Icons.edit, size: 18), onPressed: onEdit),
+      if (onDelete != null) IconButton(icon: const Icon(Icons.delete, size: 18, color: AppColors.error), onPressed: onDelete),
+    ]),
+  ));
 }
 
-class _AddAdminSheet extends ConsumerStatefulWidget {
-  const _AddAdminSheet();
+class _RoleCard extends StatelessWidget {
+  final RoleModel role;
+  final VoidCallback onDelete;
+  final VoidCallback onEdit;
+  const _RoleCard({required this.role, required this.onDelete, required this.onEdit});
+  @override
+  Widget build(BuildContext context) => Card(child: ListTile(
+    dense: true, title: Text(toCamelCase(role.name), style: const TextStyle(fontSize: 13)),
+    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+      IconButton(icon: const Icon(Icons.edit, size: 18), onPressed: onEdit),
+      IconButton(icon: const Icon(Icons.delete, size: 18, color: AppColors.error), onPressed: onDelete),
+    ]),
+  ));
+}
 
+class _DesignationCard extends StatelessWidget {
+  final DesignationModel designation;
+  final VoidCallback onDelete;
+  final VoidCallback onEdit;
+  const _DesignationCard({required this.designation, required this.onDelete, required this.onEdit});
+  @override
+  Widget build(BuildContext context) => Card(child: ListTile(
+    dense: true, title: Text(toCamelCase(designation.name), style: const TextStyle(fontSize: 13)),
+    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+      IconButton(icon: const Icon(Icons.edit, size: 18), onPressed: onEdit),
+      IconButton(icon: const Icon(Icons.delete, size: 18, color: AppColors.error), onPressed: onDelete),
+    ]),
+  ));
+}
+
+// ── Management Sheets (Add/Edit) ───────────────────────────────────────────────
+
+class _AddAdminSheet extends ConsumerStatefulWidget {
   @override
   ConsumerState<_AddAdminSheet> createState() => _AddAdminSheetState();
 }
-
 class _AddAdminSheetState extends ConsumerState<_AddAdminSheet> {
-  final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _mobileCtrl = TextEditingController();
-  bool _saving = false;
-
   @override
-  void dispose() {
-    _nameCtrl.dispose();
-    _mobileCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _saving = true);
-
-    try {
-      final currentUser = await ref.read(currentUserProvider.future);
-      if (currentUser == null) return;
-
-      final school = await ref.read(currentSchoolProvider.future);
-      if (school == null) {
-        if (mounted) Navigator.pop(context);
-        return;
-      }
-
-      await ref.read(createAdminProvider.notifier).createAdmin(
-            name: _nameCtrl.text.trim(),
-            mobile: _mobileCtrl.text.trim(),
-            schoolId: currentUser.schoolId,
-            schoolShortName: school.shortName ?? school.name,
-            createdBy: currentUser.id,
-          );
-
-      if (mounted) Navigator.pop(context, true);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content:
-                  Text(e.toString().replaceFirst('Exception: ', ''))),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottom),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Add Admin',
-                style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 20),
-            TextFormField(
-              controller: _nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Name',
-                prefixIcon: Icon(Icons.person_outline),
-              ),
-              textCapitalization: TextCapitalization.words,
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Required' : null,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _mobileCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Mobile',
-                prefixIcon: Icon(Icons.phone_outlined),
-              ),
-              keyboardType: TextInputType.phone,
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Required';
-                if (!RegExp(r'^\d{10}$').hasMatch(v.trim())) {
-                  return 'Enter a valid 10-digit mobile number';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _saving ? null : _save,
-              child: _saving
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Add Admin'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(context).viewInsets.bottom + 20),
+    child: Column(mainAxisSize: MainAxisSize.min, children: [
+      TextFormField(controller: _nameCtrl, decoration: const InputDecoration(labelText: 'Name')),
+      TextFormField(controller: _mobileCtrl, decoration: const InputDecoration(labelText: 'Mobile')),
+      const SizedBox(height: 20),
+      ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Add Admin'))
+    ]),
+  );
 }
 
 class _EditAdminSheet extends ConsumerStatefulWidget {
   final UserModel admin;
+
   const _EditAdminSheet({required this.admin});
 
   @override
@@ -748,10 +546,9 @@ class _EditAdminSheet extends ConsumerStatefulWidget {
 }
 
 class _EditAdminSheetState extends ConsumerState<_EditAdminSheet> {
-  final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _nameCtrl;
-  late final TextEditingController _mobileCtrl;
-  bool _saving = false;
+  late TextEditingController _nameCtrl;
+  late TextEditingController _mobileCtrl;
+  bool _loading = false;
 
   @override
   void initState() {
@@ -761,188 +558,118 @@ class _EditAdminSheetState extends ConsumerState<_EditAdminSheet> {
   }
 
   @override
-  void dispose() {
-    _nameCtrl.dispose();
-    _mobileCtrl.dispose();
-    super.dispose();
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        20,
+        20,
+        MediaQuery.of(context).viewInsets.bottom + 20,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Edit Admin',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+
+          TextFormField(
+            controller: _nameCtrl,
+            decoration: const InputDecoration(labelText: 'Name'),
+          ),
+
+          const SizedBox(height: 10),
+
+          TextFormField(
+            controller: _mobileCtrl,
+            decoration: const InputDecoration(labelText: 'Mobile'),
+            keyboardType: TextInputType.phone,
+          ),
+
+          const SizedBox(height: 20),
+
+          ElevatedButton(
+            onPressed: _loading ? null : _updateAdmin,
+            child: _loading
+                ? const CircularProgressIndicator()
+                : const Text('Update Admin'),
+          ),
+        ],
+      ),
+    );
   }
 
-  Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _saving = true);
+  Future<void> _updateAdmin() async {
+    final name = _nameCtrl.text.trim();
+    final mobile = _mobileCtrl.text.trim();
+
+    if (name.isEmpty || mobile.isEmpty) {
+      showDialog(
+        context: context,
+        builder: (_) => const AlertDialog(
+          title: Text('Error'),
+          content: Text('All fields required'),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+    });
 
     try {
-      final school = await ref.read(currentSchoolProvider.future);
-      if (school == null || (school.shortName ?? '').isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('School short name not set')),
-          );
-        }
-        return;
-      }
+      final user = await ref.read(currentUserProvider.future);
+      if (user == null) throw Exception('User not found');
+
+      final shortName = user.schoolShortName ?? '';
 
       await ref.read(userRepositoryProvider).updateUser(
-            userId: widget.admin.id,
-            name: _nameCtrl.text.trim(),
-            mobile: _mobileCtrl.text.trim(),
-            schoolId: school.id,
-            schoolShortName: school.shortName!,
-            allowModifyManager: true,
-          );
+        userId: widget.admin.id,
+        schoolId: user.schoolId,
+        name: name,
+        mobile: mobile,
+        schoolShortName: shortName,
+      );
 
-      if (mounted) Navigator.pop(context, true);
+      ref.invalidate(schoolAdminsProvider);
+
+      if (!mounted) return;
+
+      Navigator.pop(context, true);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Admin updated')),
+      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text(e.toString().replaceFirst('Exception: ', ''))),
-        );
-      }
+      if (!mounted) return;
+
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Error'),
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
     }
   }
-
-  @override
-  Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottom),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Edit Admin',
-                style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 20),
-            TextFormField(
-              controller: _nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Name',
-                prefixIcon: Icon(Icons.person_outline),
-              ),
-              textCapitalization: TextCapitalization.words,
-              autofocus: true,
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Required' : null,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _mobileCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Mobile',
-                prefixIcon: Icon(Icons.phone_outlined),
-              ),
-              keyboardType: TextInputType.phone,
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) return 'Required';
-                if (!RegExp(r'^\d{10}$').hasMatch(v.trim())) {
-                  return 'Enter a valid 10-digit mobile number';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _saving ? null : _save,
-              child: _saving
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Save'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
-
-// ── Section Header ────────────────────────────────────────────────────────────
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  final VoidCallback onAdd;
-
-  const _SectionHeader({required this.title, required this.onAdd});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          title,
-          style: Theme.of(context)
-              .textTheme
-              .titleMedium
-              ?.copyWith(fontWeight: FontWeight.bold),
-        ),
-        TextButton.icon(
-          onPressed: onAdd,
-          icon: const Icon(Icons.add, size: 18),
-          label: const Text('Add'),
-        ),
-      ],
-    );
-  }
-}
-
-// ── Role Card ─────────────────────────────────────────────────────────────────
-
-class _RoleCard extends StatelessWidget {
-  final RoleModel role;
-  final VoidCallback onDelete;
-  final VoidCallback onEdit;
-
-  const _RoleCard({
-    required this.role,
-    required this.onDelete,
-    required this.onEdit,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final displayName = toCamelCase(role.name);
-    return Card(
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: AppColors.adminColor.withAlpha(30),
-          child: Text(
-            displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
-            style: const TextStyle(
-              color: AppColors.adminColor,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        title: Text(displayName),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.edit_outlined, size: 20),
-              onPressed: onEdit,
-              tooltip: 'Edit role',
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete_outline, size: 20, color: Colors.redAccent),
-              onPressed: onDelete,
-              tooltip: 'Delete role',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Add Role Sheet ────────────────────────────────────────────────────────────
 
 class _AddRoleSheet extends ConsumerStatefulWidget {
   final RoleModel? role;
@@ -954,11 +681,8 @@ class _AddRoleSheet extends ConsumerStatefulWidget {
 }
 
 class _AddRoleSheetState extends ConsumerState<_AddRoleSheet> {
-  final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _nameCtrl;
-  bool _saving = false;
-
-  bool get _isEditing => widget.role != null;
+  late TextEditingController _nameCtrl;
+  bool _loading = false;
 
   @override
   void initState() {
@@ -967,184 +691,84 @@ class _AddRoleSheetState extends ConsumerState<_AddRoleSheet> {
   }
 
   @override
-  void dispose() {
-    _nameCtrl.dispose();
-    super.dispose();
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        20,
+        20,
+        MediaQuery.of(context).viewInsets.bottom + 20,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            widget.role == null ? 'Add Role' : 'Edit Role',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+
+          TextFormField(
+            controller: _nameCtrl,
+            decoration: const InputDecoration(labelText: 'Role Name'),
+          ),
+
+          const SizedBox(height: 20),
+
+          ElevatedButton(
+            onPressed: _loading ? null : _saveRole,
+            child: _loading
+                ? const CircularProgressIndicator()
+                : Text(widget.role == null ? 'Add Role' : 'Update Role'),
+          ),
+        ],
+      ),
+    );
   }
 
-  Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _saving = true);
+  Future<void> _saveRole() async {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) return;
 
-    try {
-      final currentUser = await ref.read(currentUserProvider.future);
-      if (currentUser == null) return;
+    setState(() => _loading = true);
 
-      final inputName = _nameCtrl.text.trim().toLowerCase();
-      final existingRoles = ref.watch(rolesProvider).valueOrNull ?? [];
-      final isDuplicate = existingRoles.any((r) =>
-          r.name.trim().toLowerCase() == inputName &&
-          r.id != widget.role?.id);
-      if (isDuplicate) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Role already exists')),
-          );
-        }
-        return;
-      }
+    final user = await ref.read(currentUserProvider.future);
+    if (user == null) return;
 
-      final RoleResult result;
-      if (_isEditing) {
-        result = await ref.read(rolesRepositoryProvider).updateRole(
-              roleId: widget.role!.id,
-              schoolId: currentUser.schoolId,
-              name: _nameCtrl.text.trim(),
-            );
-      } else {
-        result = await ref.read(rolesRepositoryProvider).addRole(
-              name: _nameCtrl.text.trim(),
-              schoolId: currentUser.schoolId,
-              createdBy: currentUser.id,
-            );
-      }
+    final repo = ref.read(rolesRepositoryProvider);
 
-      if (result.success) {
-        if (mounted) {
-          // 🔥 FORCE REFRESH HERE (NOT ONLY PARENT)
-          ref.invalidate(rolesProvider);
+    final result = widget.role == null
+        ? await repo.addRole(
+      name: name,
+      schoolId: user.schoolId,
+      createdBy: user.id,
+    )
+        : await repo.updateRole(
+      roleId: widget.role!.id,
+      schoolId: user.schoolId,
+      name: name,
+    );
 
-          Navigator.pop(context, true);
+    setState(() => _loading = false);
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(_isEditing
-                  ? 'Role updated successfully'
-                  : 'Role added successfully'),
-            ),
-          );
-        }
-      } else {
-        if (mounted) {
-          showDialog(
-            context: context,
-            builder: (_) => AlertDialog(
-              title: const Text('Error'),
-              content: Text(
-                result.error?.replaceFirst('Exception: ', '') ??
-                    'Failed to update role',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('OK'),
-                ),
-              ],
-            ),
-          );
-        }
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
+    if (result.success) {
+      ref.invalidate(rolesProvider);
+      Navigator.pop(context, true);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(widget.role == null ? 'Role added' : 'Role updated')),
+      );
+    } else {
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Error'),
+          content: Text(result.error ?? 'Operation failed'),
+        ),
+      );
     }
   }
-
-  @override
-  Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottom),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              _isEditing ? 'Edit Role' : 'Add Role',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 20),
-            TextFormField(
-              controller: _nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Role Name',
-                prefixIcon: Icon(Icons.label_outline),
-              ),
-              textCapitalization: TextCapitalization.words,
-              autofocus: true,
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Required' : null,
-            ),
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _saving ? null : _save,
-              child: _saving
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(_isEditing ? 'Save' : 'Add Role'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
-
-// ── Designation Card ──────────────────────────────────────────────────────────
-
-class _DesignationCard extends StatelessWidget {
-  final DesignationModel designation;
-  final VoidCallback onDelete;
-  final VoidCallback onEdit;
-
-  const _DesignationCard({
-    required this.designation,
-    required this.onDelete,
-    required this.onEdit,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final displayName = toCamelCase(designation.name);
-    return Card(
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: AppColors.adminColor.withAlpha(30),
-          child: Text(
-            displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
-            style: const TextStyle(
-              color: AppColors.adminColor,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        title: Text(displayName),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.edit_outlined, size: 20),
-              onPressed: onEdit,
-              tooltip: 'Edit designation',
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete_outline,
-                  size: 20, color: Colors.redAccent),
-              onPressed: onDelete,
-              tooltip: 'Delete designation',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Add Designation Sheet ─────────────────────────────────────────────────────
 
 class _AddDesignationSheet extends ConsumerStatefulWidget {
   final DesignationModel? designation;
@@ -1152,421 +776,219 @@ class _AddDesignationSheet extends ConsumerStatefulWidget {
   const _AddDesignationSheet({this.designation});
 
   @override
-  ConsumerState<_AddDesignationSheet> createState() =>
-      _AddDesignationSheetState();
+  ConsumerState<_AddDesignationSheet> createState() => _AddDesignationSheetState();
 }
 
 class _AddDesignationSheetState extends ConsumerState<_AddDesignationSheet> {
-  final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _nameCtrl;
-  bool _saving = false;
-
-  bool get _isEditing => widget.designation != null;
+  late TextEditingController _nameCtrl;
+  bool _loading = false;
 
   @override
   void initState() {
     super.initState();
-    _nameCtrl =
-        TextEditingController(text: widget.designation?.name ?? '');
-  }
-
-  @override
-  void dispose() {
-    _nameCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    print("DEBUG: SAVE FUNCTION TRIGGERED");
-    final cleanName = _nameCtrl.text.trim();
-
-    if (cleanName.isEmpty) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Error'),
-          content: const Text('User not available. Please login again.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
-
-    setState(() => _saving = true);
-
-    try {
-      // ✅ FIX 1: Properly read current user
-      final currentUser = await ref.read(currentUserProvider.future);
-
-      if (currentUser == null) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Session Error'),
-            content: const Text('User not available. Please login again.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-        );
-        return;
-      }
-
-      // ✅ FIX 2: Safe designation list read
-      final existingAsync = ref.read(designationsProvider);
-
-      final existing = existingAsync.maybeWhen(
-        data: (data) => data,
-        orElse: () => [],
-      );
-
-      final inputName = cleanName.toLowerCase();
-
-      final isDuplicate = existing.any((d) =>
-      d.name.trim().toLowerCase() == inputName &&
-          d.id != widget.designation?.id);
-
-      if (isDuplicate) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Designation already exists')),
-        );
-        return;
-      }
-
-      // ✅ FIX 3: Proper repository call
-      final DesignationResult result;
-
-      if (_isEditing) {
-        result = await ref
-            .read(designationRepositoryProvider)
-            .updateDesignation(
-          id: widget.designation!.id,
-          name: cleanName,
-        );
-      } else {
-        result = await ref
-            .read(designationRepositoryProvider)
-            .addDesignation(
-          name: cleanName,
-          schoolId: currentUser.schoolId,
-        );
-      }
-
-      // ✅ FIX 4: Guaranteed feedback
-      if (result.success) {
-        if (mounted) {
-          ref.refresh(designationsProvider);
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(_isEditing
-                  ? 'Designation updated successfully'
-                  : 'Designation added successfully'),
-            ),
-          );
-
-          Navigator.pop(context, true);
-        }
-      } else {
-        if (mounted) {
-          final raw = result.error?.replaceFirst('Exception: ', '') ?? '';
-
-          final message = raw.toLowerCase().contains('duplicate') ||
-              raw.toLowerCase().contains('unique')
-              ? 'Designation already exists'
-              : (raw.isNotEmpty
-              ? raw
-              : (_isEditing
-              ? 'Failed to update designation'
-              : 'Failed to add designation'));
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message)),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
+    _nameCtrl = TextEditingController(text: widget.designation?.name ?? '');
   }
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
     return Padding(
-      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottom),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              _isEditing ? 'Edit Designation' : 'Add Designation',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 20),
-            TextFormField(
-              controller: _nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Designation Name',
-                prefixIcon: Icon(Icons.work_outline),
-              ),
-              textCapitalization: TextCapitalization.words,
-              autofocus: true,
-            ),
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _saving ? null : _save,
-              child: _saving
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(_isEditing ? 'Save' : 'Add Designation'),
-            ),
-          ],
-        ),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        20,
+        20,
+        MediaQuery.of(context).viewInsets.bottom + 20,
       ),
-    );
-  }
-}
-
-// ── Student Management Tab ────────────────────────────────────────────────────
-
-class _StudentManagementTab extends ConsumerWidget {
-  const _StudentManagementTab();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final studentsAsync = ref.watch(schoolStudentsProvider);
-
-    return Stack(
-      children: [
-        studentsAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('Error: $e')),
-          data: (students) {
-            if (students.isEmpty) {
-              return const Center(
-                  child: Text('No students yet. Tap + to add.'));
-            }
-            return ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
-              itemCount: students.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (_, i) => _StudentCard(student: students[i]),
-            );
-          },
-        ),
-        Positioned(
-          bottom: 16,
-          right: 16,
-          child: FloatingActionButton.extended(
-            heroTag: 'fab_add_student',
-            onPressed: () => _showAddStudentSheet(context, ref),
-            icon: const Icon(Icons.person_add),
-            label: const Text('Add Student'),
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _showAddStudentSheet(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => _AddStudentSheet(
-        onSaved: () => ref.invalidate(schoolStudentsProvider),
-      ),
-    );
-  }
-}
-
-class _StudentCard extends StatelessWidget {
-  final Map<String, dynamic> student;
-  const _StudentCard({required this.student});
-
-  @override
-  Widget build(BuildContext context) {
-    final name = (student['name'] as String?) ?? '-';
-    final classId =
-        (student['class_id'] as String?) ?? 'Unassigned';
-
-    return Card(
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: AppColors.coordinatorColor.withAlpha(30),
-          child: Text(
-            name.isNotEmpty ? name[0].toUpperCase() : '?',
-            style: const TextStyle(
-                color: AppColors.coordinatorColor,
-                fontWeight: FontWeight.bold),
-          ),
-        ),
-        title: Text(name),
-        subtitle: Text('Class: $classId'),
-      ),
-    );
-  }
-}
-
-class _AddStudentSheet extends ConsumerStatefulWidget {
-  final VoidCallback onSaved;
-  const _AddStudentSheet({required this.onSaved});
-
-  @override
-  ConsumerState<_AddStudentSheet> createState() => _AddStudentSheetState();
-}
-
-class _AddStudentSheetState extends ConsumerState<_AddStudentSheet> {
-  final _formKey = GlobalKey<FormState>();
-  final _nameCtrl = TextEditingController();
-  bool _saving = false;
-
-  @override
-  void dispose() {
-    _nameCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _saving = true);
-    try {
-      final UserModel? currentUser = await ref.read(currentUserProvider.future);
-      if (currentUser == null) return;
-
-      await ref.read(studentRepositoryProvider).addStudent(
-            schoolId: currentUser.schoolId,
-            name: _nameCtrl.text.trim(),
-          );
-
-      if (mounted) {
-        widget.onSaved();
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Student added successfully')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + bottom),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Add Student',
-                style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 20),
-            TextFormField(
-              controller: _nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Name',
-                prefixIcon: Icon(Icons.person_outline),
-              ),
-              textCapitalization: TextCapitalization.words,
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Required' : null,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Class, section and parent can be assigned after creation.',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodySmall
-                  ?.copyWith(color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _saving ? null : _save,
-              child: _saving
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Add Student'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Shared ────────────────────────────────────────────────────────────────────
-
-class _RoleBanner extends StatelessWidget {
-  final String label;
-  final Color color;
-  final String userName;
-
-  const _RoleBanner({
-    required this.label,
-    required this.color,
-    required this.userName,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      color: color.withAlpha(25),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Chip(
-            label: Text(label,
-                style:
-                    const TextStyle(color: Colors.white, fontSize: 12)),
-            backgroundColor: color,
-            padding: const EdgeInsets.symmetric(horizontal: 4),
+          Text(
+            widget.designation == null ? 'Add Designation' : 'Edit Designation',
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
-          if (userName.isNotEmpty) ...[
-            const SizedBox(width: 12),
-            Text(
-              'Welcome, $userName',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: AppColors.textPrimary),
-            ),
-          ],
+          const SizedBox(height: 16),
+
+          TextFormField(
+            controller: _nameCtrl,
+            decoration: const InputDecoration(labelText: 'Designation'),
+          ),
+
+          const SizedBox(height: 20),
+
+          ElevatedButton(
+            onPressed: _loading ? null : _saveDesignation,
+            child: _loading
+                ? const CircularProgressIndicator()
+                : Text(widget.designation == null ? 'Add' : 'Update'),
+          ),
         ],
       ),
     );
   }
+
+  Future<void> _saveDesignation() async {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) return;
+
+    setState(() => _loading = true);
+
+    final repo = ref.read(designationRepositoryProvider);
+
+    final user = await ref.read(currentUserProvider.future);
+    if (user == null) return;
+
+    final result = widget.designation == null
+        ? await repo.addDesignation(
+      name: name,
+      schoolId: user.schoolId, // ✅ FIX
+    )
+        : await repo.updateDesignation(
+      id: widget.designation!.id,
+      name: name,
+    );
+
+    setState(() => _loading = false);
+
+    if (result.success) {
+      ref.invalidate(designationsProvider);
+      Navigator.pop(context, true);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(widget.designation == null ? 'Added' : 'Updated')),
+      );
+    } else {
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Error'),
+          content: Text(result.error ?? 'Operation failed'),
+        ),
+      );
+    }
+  }
+}
+
+class _ClassSheet extends ConsumerStatefulWidget {
+  final ClassModel? classModel;
+
+  const _ClassSheet({this.classModel});
+
+  @override
+  ConsumerState<_ClassSheet> createState() => _ClassSheetState();
+}
+
+class _ClassSheetState extends ConsumerState<_ClassSheet> {
+  final _classCtrl = TextEditingController();
+  final _sectionCtrl = TextEditingController();
+
+  bool _loading = false;
+  String? _error;
+
+  bool get _isEdit => widget.classModel != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isEdit) {
+      _classCtrl.text = widget.classModel!.className;
+      _sectionCtrl.text = widget.classModel!.section;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        20,
+        20,
+        MediaQuery.of(context).viewInsets.bottom + 20,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            _isEdit ? 'Edit Class' : 'Add Class',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+
+          const SizedBox(height: 16),
+
+          TextFormField(
+            controller: _classCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Class (e.g., 1, Nursery)',
+            ),
+          ),
+
+          const SizedBox(height: 10),
+
+          TextFormField(
+            controller: _sectionCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Section (e.g., A, Rose)',
+            ),
+          ),
+
+          if (_error != null) ...[
+            const SizedBox(height: 10),
+            Text(_error!, style: const TextStyle(color: Colors.red)),
+          ],
+
+          const SizedBox(height: 20),
+
+          ElevatedButton(
+            onPressed: _loading ? null : _save,
+            child: _loading
+                ? const CircularProgressIndicator()
+                : const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _save() async {
+    if (_classCtrl.text.trim().isEmpty ||
+        _sectionCtrl.text.trim().isEmpty) {
+      setState(() => _error = 'Both fields required');
+      return;
+    }
+
+    final user = await ref.read(currentUserProvider.future);
+    if (user == null) return;
+
+    setState(() => _loading = true);
+
+    final repo = ref.read(classRepositoryProvider);
+
+    final result = _isEdit
+        ? await repo.updateClass(
+      id: widget.classModel!.id,
+      className: _classCtrl.text,
+      section: _sectionCtrl.text,
+    )
+        : await repo.addClass(
+      className: _classCtrl.text,
+      section: _sectionCtrl.text,
+      schoolId: user.schoolId,
+    );
+
+    if (!mounted) return;
+
+    if (result.success) {
+      Navigator.pop(context, true);
+    } else {
+      setState(() {
+        _loading = false;
+        _error = result.error;
+      });
+    }
+  }
+}
+
+// ── Student Management ────────────────────────────────────────────────────────
+
+class _StudentManagementTab extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => const Center(child: Text('Student List'));
 }

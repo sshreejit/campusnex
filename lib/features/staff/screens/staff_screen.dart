@@ -1,12 +1,14 @@
 import 'dart:typed_data';
 
-import '../../../core/repositories/user_repository.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../classes/providers/class_provider.dart';
+import '../../../core/models/class_model.dart';
 import '../../../core/models/staff_model.dart';
+import '../../../core/models/result.dart';
 import '../../auth/auth_notifier.dart';
 import '../../auth/auth_state.dart';
 import '../../dashboard/providers/dashboard_providers.dart';
@@ -15,6 +17,7 @@ import '../../designations/providers/designation_provider.dart';
 import '../../roles/models/role_model.dart';
 import '../repositories/staff_repository.dart';
 import '../repositories/staff_roles_repository.dart';
+import '../../../core/repositories/user_repository.dart';
 
 class StaffScreen extends ConsumerStatefulWidget {
   const StaffScreen({super.key});
@@ -24,20 +27,111 @@ class StaffScreen extends ConsumerStatefulWidget {
 }
 
 class _StaffScreenState extends ConsumerState<StaffScreen> {
+  final _scrollController = ScrollController();
   final _searchCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() => _loadStaffRolesMap(ref));
+
+    _scrollController.addListener(() {
+      if (_scrollController.position.pixels >=
+          _scrollController.position.maxScrollExtent - 200) {
+        ref.read(staffListProvider.notifier).loadMore();
+      }
+    });
+  }
+
   String _searchQuery = '';
   bool? _statusFilter; // null = all, true = active, false = inactive
   String? _designationFilter;
+  String? _roleFilter; // null = all roles
+  String? _classFilter;
+  String? _sectionFilter;
+  Future<List<String>>? _roleFuture;
+  Map<String, List<String>> _staffRoleMap = {};
+  Map<String, String> _staffRoleDisplayMap = {};
 
   @override
   void dispose() {
+    _scrollController.dispose(); // ✅ ADD THIS
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadStaffRolesMap(WidgetRef ref) async {
+    final user = await ref.read(currentUserProvider.future);
+    if (user == null) return;
+
+    final session = _getCurrentSession();
+
+    final data = await ref
+        .read(staffRolesRepositoryProvider)
+        .getAllStaffRoles(
+      schoolId: user.schoolId,
+      session: session,
+    );
+
+    final map = <String, List<String>>{};
+    final displayMap = <String, String>{};
+
+    for (final r in data) {
+      if (r.roleName.isEmpty) continue;
+
+      if (!map.containsKey(r.staffId)) {
+        map[r.staffId] = [];
+      }
+
+      // clean role (for bottom sheet)
+      map[r.staffId]!.add(r.roleName);
+
+      // display string (for UI)
+      String toCamelCase(String text) {
+        return text
+            .toLowerCase()
+            .split(' ')
+            .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
+            .join(' ');
+      }
+
+      final roleName = toCamelCase(r.roleName);
+
+      String? classPart;
+
+      if (r.className != null && r.className!.isNotEmpty) {
+        if (r.section != null && r.section!.isNotEmpty) {
+          classPart = '${r.className} ${r.section}'; // 1 A
+        } else {
+          classPart = r.className; // only class (CR case)
+        }
+      }
+
+      String display;
+
+      if (classPart != null) {
+        display = '$roleName - $classPart';
+      } else {
+        display = roleName; // no class → only role
+      }
+
+      if (!displayMap.containsKey(r.staffId)) {
+        displayMap[r.staffId] = display;
+      }
+    }
+
+    debugPrint('DISPLAY MAP: $displayMap');
+
+    setState(() {
+      _staffRoleMap = map;
+      _staffRoleDisplayMap = displayMap;
+    });
   }
 
   List<StaffModel> _applyFilters(List<StaffModel> staffList) {
     return staffList.where((staff) {
       final q = _searchQuery.toLowerCase();
+
       final matchesSearch = q.isEmpty ||
           staff.name.toLowerCase().contains(q) ||
           staff.mobile.toLowerCase().contains(q) ||
@@ -47,15 +141,45 @@ class _StaffScreenState extends ConsumerState<StaffScreen> {
           _statusFilter == null || staff.isActive == _statusFilter;
 
       final matchesDesignation =
-          _designationFilter == null || staff.designation == _designationFilter;
+          _designationFilter == null ||
+              staff.designation == _designationFilter;
 
-      return matchesSearch && matchesStatus && matchesDesignation;
+      return matchesSearch &&
+          matchesStatus &&
+          matchesDesignation;
     }).toList();
+  }
+
+  Future<List<String>> _getFilteredStaffIdsByRole(WidgetRef ref) async {
+    if (_roleFilter == null) return [];
+
+    final user = await ref.read(currentUserProvider.future);
+    if (user == null) return [];
+
+    final session = _getCurrentSession();
+
+    return await ref
+        .read(staffRolesRepositoryProvider)
+        .getStaffIdsByRole(
+      roleName: _roleFilter!,
+      schoolId: user.schoolId,
+      session: session,
+    );
+  }
+
+  String _getCurrentSession() {
+    final now = DateTime.now();
+    final year = now.year;
+
+    return now.month >= 4
+        ? '$year-${year + 1}'
+        : '${year - 1}-$year';
   }
 
   @override
   Widget build(BuildContext context) {
     final staffAsync = ref.watch(staffListProvider);
+    final rolesAsync = ref.watch(rolesProvider);
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -69,47 +193,114 @@ class _StaffScreenState extends ConsumerState<StaffScreen> {
               .toList()
             ..sort();
 
-          final filtered = _applyFilters(staffList);
+          if (_roleFilter != null && _roleFuture == null) {
+            _roleFuture = _getFilteredStaffIdsByRole(ref);
+          }
 
-          return Column(
-            children: [
-              _SearchFilterBar(
-                searchCtrl: _searchCtrl,
-                statusFilter: _statusFilter,
-                designationFilter: _designationFilter,
-                designations: designations,
-                onSearchChanged: (v) =>
-                    setState(() => _searchQuery = v),
-                onStatusChanged: (v) =>
-                    setState(() => _statusFilter = v),
-                onDesignationChanged: (v) =>
-                    setState(() => _designationFilter = v),
-              ),
-              Expanded(
-                child: filtered.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'No staff found',
-                          textAlign: TextAlign.center,
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                        itemCount: filtered.length,
-                        itemBuilder: (_, i) => _StaffCard(
-                          staff: filtered[i],
-                          onEdit: () => _showStaffFormSheet(context,
-                              staff: filtered[i]),
-                          onDelete: () =>
-                              _confirmDelete(context, filtered[i], ref),
-                          onToggleStatus: (_) =>
-                              _toggleStaffStatus(context, filtered[i], ref),
-                          onAssignRole: () => _showAssignRoleSheet(
-                              context, ref, filtered[i]),
+          return FutureBuilder<List<String>>(
+            future: _roleFuture,
+            builder: (context, snapshot) {
+              final roleStaffIds = snapshot.data ?? [];
+
+              final filtered = staffList.where((staff) {
+                final q = _searchQuery.toLowerCase();
+
+                final matchesSearch = q.isEmpty ||
+                    staff.name.toLowerCase().contains(q) ||
+                    staff.mobile.toLowerCase().contains(q) ||
+                    staff.empcode.toLowerCase().contains(q);
+
+                final matchesStatus =
+                    _statusFilter == null || staff.isActive == _statusFilter;
+
+                final matchesDesignation =
+                    _designationFilter == null ||
+                        staff.designation == _designationFilter;
+
+                final matchesRole = _roleFilter == null ||
+                    roleStaffIds.contains(staff.id);
+
+                final matchesClass =
+                    _classFilter == null ||
+                        (_staffRoleDisplayMap[staff.id]?.contains(_classFilter!) ?? false);
+
+                final matchesSection =
+                    _sectionFilter == null ||
+                        (_staffRoleDisplayMap[staff.id]?.contains(_sectionFilter!) ?? false);
+
+                return matchesSearch &&
+                    matchesStatus &&
+                    matchesDesignation &&
+                    matchesRole &&
+                    matchesClass &&
+                    matchesSection;
+              }).toList()
+                ..sort((a, b) {
+                final nameCompare = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+                if (nameCompare != 0) return nameCompare;
+                return a.empcode.toLowerCase().compareTo(b.empcode.toLowerCase());
+              });
+              return rolesAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (e, _) => const Center(child: Text('Error loading roles')),
+                data: (roles) {
+                  final roleNames = roles.map((r) => r.name).toList();
+
+                  return Column(
+                    children: [
+                      _SearchFilterBar(
+                        searchCtrl: _searchCtrl,
+                        statusFilter: _statusFilter,
+                        designationFilter: _designationFilter,
+                        designations: designations,
+                        roleFilter: _roleFilter,
+                        roles: roleNames,
+                        classFilter: _classFilter,
+                        sectionFilter: _sectionFilter,
+                        onClassChanged: (v) => setState(() => _classFilter = v),
+                        onSectionChanged: (v) => setState(() => _sectionFilter = v),
+                        onSearchChanged: (v) => setState(() => _searchQuery = v),
+                        onStatusChanged: (v) => setState(() => _statusFilter = v),
+                        onDesignationChanged: (v) =>
+                            setState(() => _designationFilter = v),
+                        onRoleChanged: (v) {
+                          setState(() {
+                            _roleFilter = v;
+                            _roleFuture = null;
+                          });
+                        },
+                      ),
+
+                      Expanded(
+                        child: filtered.isEmpty
+                            ? const Center(child: Text('No staff found'))
+                            : ListView.builder(
+                          controller: _scrollController,
+                          padding:
+                          const EdgeInsets.fromLTRB(12, 0, 12, 80),
+                          itemCount: filtered.length,
+                          itemBuilder: (_, i) => _StaffCard(
+                            staff: filtered[i],
+                            roleNames: _staffRoleMap[filtered[i].id] ?? [],
+                            roleDisplay: _staffRoleDisplayMap[filtered[i].id],
+                            onEdit: () => _showStaffFormSheet(context,
+                                staff: filtered[i]),
+                            onDelete: () => _confirmDelete(
+                                context, filtered[i], ref),
+                            onToggleStatus: (_) => _toggleStaffStatus(
+                                context, filtered[i], ref),
+                            onAssignRole: () => _showAssignRoleSheet(
+                                context, ref, filtered[i],
+                                _staffRoleMap[filtered[i].id] ?? [],
+                            )
+                          ),
                         ),
                       ),
-              ),
-            ],
+                    ],
+                  );
+                },
+              );
+            },
           );
         },
       ),
@@ -131,15 +322,35 @@ class _SearchFilterBar extends StatelessWidget {
   final bool? statusFilter;
   final String? designationFilter;
   final List<String> designations;
+
+  final String? roleFilter;            // ✅ ADD
+  final List<String> roles;            // ✅ ADD
+  final ValueChanged<String?> onRoleChanged; // ✅ ADD
+
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<bool?> onStatusChanged;
   final ValueChanged<String?> onDesignationChanged;
+
+  final String? classFilter;
+  final String? sectionFilter;
+  final ValueChanged<String?> onClassChanged;
+  final ValueChanged<String?> onSectionChanged;
 
   const _SearchFilterBar({
     required this.searchCtrl,
     required this.statusFilter,
     required this.designationFilter,
     required this.designations,
+
+    required this.classFilter,
+    required this.sectionFilter,
+    required this.onClassChanged,
+    required this.onSectionChanged,
+
+    required this.roleFilter,     // ✅ ADD
+    required this.roles,          // ✅ ADD
+    required this.onRoleChanged,  // ✅ ADD
+
     required this.onSearchChanged,
     required this.onStatusChanged,
     required this.onDesignationChanged,
@@ -178,27 +389,40 @@ class _SearchFilterBar extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _FilterChip(
-                  label: 'Active',
-                  selected: statusFilter == true,
-                  onTap: () => onStatusChanged(
-                    statusFilter == true ? null : true,
-                  ),
+                _StatusDropdown(
+                  value: statusFilter,
+                  onChanged: onStatusChanged,
                 ),
-                const SizedBox(width: 8),
-                _FilterChip(
-                  label: 'Inactive',
-                  selected: statusFilter == false,
-                  onTap: () => onStatusChanged(
-                    statusFilter == false ? null : false,
-                  ),
-                ),
+
                 if (designations.isNotEmpty) ...[
                   const SizedBox(width: 8),
                   _DesignationDropdown(
                     value: designationFilter,
                     designations: designations,
                     onChanged: onDesignationChanged,
+                  ),
+                ],
+
+                if (roles.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  _RoleDropdown(
+                    value: roleFilter,
+                    roles: roles,
+                    onChanged: onRoleChanged,
+                  ),
+
+                  const SizedBox(width: 8),
+
+                  _ClassDropdown(
+                    value: classFilter,
+                    onChanged: onClassChanged,
+                  ),
+
+                  const SizedBox(width: 8),
+
+                  _SectionDropdown(
+                    value: sectionFilter,
+                    onChanged: onSectionChanged,
                   ),
                 ],
               ],
@@ -296,7 +520,211 @@ class _DesignationDropdown extends StatelessWidget {
     );
   }
 }
+class _StatusDropdown extends StatelessWidget {
+  final bool? value; // null = all
+  final ValueChanged<bool?> onChanged;
 
+  const _StatusDropdown({
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: value != null
+              ? Theme.of(context).colorScheme.primary
+              : Theme.of(context).colorScheme.outline,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        color: value != null
+            ? Theme.of(context).colorScheme.primary.withOpacity(0.12)
+            : null,
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<bool?>(
+          value: value,
+          isDense: true,
+          hint: const Text('Status', style: TextStyle(fontSize: 13)),
+          items: const [
+            DropdownMenuItem<bool?>(
+              value: null,
+              child: Text('All Status', style: TextStyle(fontSize: 13)),
+            ),
+            DropdownMenuItem<bool?>(
+              value: true,
+              child: Text('Active', style: TextStyle(fontSize: 13)),
+            ),
+            DropdownMenuItem<bool?>(
+              value: false,
+              child: Text('Inactive', style: TextStyle(fontSize: 13)),
+            ),
+          ],
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+}
+
+class _RoleDropdown extends StatelessWidget {
+  final String? value; // null = all
+  final List<String> roles;
+  final ValueChanged<String?> onChanged;
+
+  const _RoleDropdown({
+    required this.value,
+    required this.roles,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: value != null
+              ? Theme.of(context).colorScheme.primary
+              : Theme.of(context).colorScheme.outline,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        color: value != null
+            ? Theme.of(context).colorScheme.primary.withOpacity(0.12)
+            : null,
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String?>(
+          value: value,
+          isDense: true,
+          hint: const Text('Role', style: TextStyle(fontSize: 13)),
+          items: [
+            const DropdownMenuItem<String?>(
+              value: null,
+              child: Text('All Roles', style: TextStyle(fontSize: 13)),
+            ),
+            ...roles.map(
+                  (r) => DropdownMenuItem<String?>(
+                value: r,
+                child: Text(r, style: const TextStyle(fontSize: 13)),
+              ),
+            ),
+          ],
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+}
+
+class _ClassDropdown extends ConsumerWidget {
+  final String? value;
+  final ValueChanged<String?> onChanged;
+
+  const _ClassDropdown({
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final classesAsync = ref.watch(classesProvider);
+
+    return classesAsync.when(
+      data: (classes) {
+        final classNames =
+        classes.map((c) => c.className).toSet().toList();
+
+        return _buildDropdown(
+          context,
+          'Class',
+          value,
+          classNames,
+          onChanged,
+        );
+      },
+      loading: () => const SizedBox(),
+      error: (_, __) => const SizedBox(),
+    );
+  }
+}
+
+class _SectionDropdown extends ConsumerWidget {
+  final String? value;
+  final ValueChanged<String?> onChanged;
+
+  const _SectionDropdown({
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final classesAsync = ref.watch(classesProvider);
+
+    return classesAsync.when(
+      data: (classes) {
+        final sections =
+        classes.map((c) => c.section).toSet().toList();
+
+        return _buildDropdown(
+          context,
+          'Section',
+          value,
+          sections,
+          onChanged,
+        );
+      },
+      loading: () => const SizedBox(),
+      error: (_, __) => const SizedBox(),
+    );
+  }
+}
+Widget _buildDropdown(
+    BuildContext context,
+    String label,
+    String? value,
+    List<String> items,
+    ValueChanged<String?> onChanged,
+    ) {
+  return Container(
+    height: 32,
+    padding: const EdgeInsets.symmetric(horizontal: 10),
+    decoration: BoxDecoration(
+      border: Border.all(
+        color: value != null
+            ? Theme.of(context).colorScheme.primary
+            : Theme.of(context).colorScheme.outline,
+      ),
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: DropdownButtonHideUnderline(
+      child: DropdownButton<String?>(
+        value: value,
+        isDense: true,
+        hint: Text(label, style: const TextStyle(fontSize: 13)),
+        items: [
+          DropdownMenuItem<String?>(
+            value: null,
+            child: Text('All $label'),
+          ),
+          ...items.map(
+                (e) => DropdownMenuItem(
+              value: e,
+              child: Text(e),
+            ),
+          ),
+        ],
+        onChanged: onChanged,
+      ),
+    ),
+  );
+}
 // ─────────────────────────────────────────────
 // ADD STAFF SHEET
 // ─────────────────────────────────────────────
@@ -383,6 +811,7 @@ Future<void> _showAssignRoleSheet(
   BuildContext context,
   WidgetRef ref,
   StaffModel staff,
+  List<String> roleNames,
 ) async {
   final result = await showModalBottomSheet<Result>(
     context: context,
@@ -390,7 +819,7 @@ Future<void> _showAssignRoleSheet(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder: (_) => _AssignRoleSheet(staff: staff),
+    builder: (_) => _AssignRoleSheet(staff: staff, roleNames: roleNames,),
   );
 
   if (result == null) return;
@@ -398,6 +827,14 @@ Future<void> _showAssignRoleSheet(
 
   if (result.success) {
     ref.invalidate(staffRolesProvider);
+
+    final state = (context as Element)
+        .findAncestorStateOfType<_StaffScreenState>();
+
+    if (state != null) {
+      await state._loadStaffRolesMap(ref);
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Role assigned successfully')),
     );
@@ -703,23 +1140,27 @@ class _StaffFormSheetState extends ConsumerState<_StaffFormSheet> {
 
 // ONLY CHANGE: _StaffCard converted to ConsumerWidget + roles display added
 
-class _StaffCard extends ConsumerWidget {
+class _StaffCard extends StatelessWidget {
   final StaffModel staff;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final ValueChanged<bool> onToggleStatus;
   final VoidCallback onAssignRole;
+  final List<String> roleNames;
+  final String? roleDisplay;
 
   const _StaffCard({
     required this.staff,
+    required this.roleNames,
     required this.onEdit,
     required this.onDelete,
     required this.onToggleStatus,
     required this.onAssignRole,
+    this.roleDisplay,
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     // 🔹 Simple session (can improve later)
     String _getCurrentSession() {
       final now = DateTime.now();
@@ -731,16 +1172,6 @@ class _StaffCard extends ConsumerWidget {
     }
 
     final currentSession = _getCurrentSession();
-
-    final rolesAsync = ref.watch(
-      staffRolesProvider(
-        StaffRoleParams(
-          staffId: staff.id,
-          session: currentSession,
-          schoolId: staff.schoolId,
-        ),
-      ),
-    );
 
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
@@ -782,7 +1213,7 @@ class _StaffCard extends ConsumerWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          staff.name,
+                          '${staff.name} (${staff.empcode})',
                           style: textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: colorScheme.onSurface,
@@ -818,28 +1249,12 @@ class _StaffCard extends ConsumerWidget {
                   const SizedBox(height: 10),
 
                   // Role + Status + Toggle — single row
-                  rolesAsync.when(
-                    loading: () => _roleStatusToggleRow(
-                      roleName: null,
-                      isActive: staff.isActive,
-                      onAssignRole: onAssignRole,
-                    ),
-                    error: (_, __) => _roleStatusToggleRow(
-                      roleName: null,
-                      isActive: staff.isActive,
-                      onAssignRole: onAssignRole,
-                    ),
-                    data: (roles) => _roleStatusToggleRow(
-                      roleName: roles.isNotEmpty
-                          ? (roles.first.roleName.isNotEmpty
-                              ? roles.first.roleName
-                              : null)
-                          : null,
-                      isActive: staff.isActive,
-                      onAssignRole: onAssignRole,
-                    ),
+                  _roleStatusToggleRow(
+                    roleNames: roleNames,
+                    isActive: staff.isActive,
+                    onAssignRole: onAssignRole,
+                    onToggleStatus: onToggleStatus,
                   ),
-
                 ],
               ),
             ),
@@ -850,9 +1265,10 @@ class _StaffCard extends ConsumerWidget {
   }
 
   Widget _roleStatusToggleRow({
-    required String? roleName,
+    required List<String> roleNames,
     required bool isActive,
     required VoidCallback onAssignRole,
+    required ValueChanged<bool> onToggleStatus,
   }) {
     const brandColor = Color(0xFF36454F);
     return Row(
@@ -863,15 +1279,17 @@ class _StaffCard extends ConsumerWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: roleName == null
+              color: roleNames.isEmpty
                   ? Colors.orange.withValues(alpha: 0.15)
                   : brandColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              roleName ?? 'Assign Role',
+              roleNames.isEmpty
+                  ? 'Assign Role'
+                  : (roleDisplay ?? roleNames.join(', ')),
               style: TextStyle(
-                color: roleName == null ? Colors.orange : brandColor,
+                color: roleNames.isEmpty ? Colors.orange : brandColor,
                 fontWeight: FontWeight.w500,
                 fontSize: 12,
               ),
@@ -880,7 +1298,7 @@ class _StaffCard extends ConsumerWidget {
         ),
 
         // Edit icon (only when role exists)
-        if (roleName != null) ...[
+        if (roleNames.isNotEmpty) ...[
           const SizedBox(width: 2),
           SizedBox(
             width: 28,
@@ -897,35 +1315,34 @@ class _StaffCard extends ConsumerWidget {
         const SizedBox(width: 6),
 
         // Status badge
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: isActive
-                ? Colors.green.withValues(alpha: 0.15)
-                : Colors.red.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Text(
-            isActive ? 'Active' : 'Inactive',
-            style: TextStyle(
-              color: isActive ? Colors.green.shade700 : Colors.red.shade700,
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
-            ),
-          ),
-        ),
 
         const Spacer(),
 
         // Toggle
-        Switch(
+        DropdownButton<bool>(
           value: isActive,
-          activeColor: Colors.white,
-          activeTrackColor: const Color(0xFF36454F).withOpacity(0.5),
-          inactiveThumbColor: Colors.white,
-          inactiveTrackColor: Colors.grey.shade300,
-          splashRadius: 16,
-          onChanged: onToggleStatus,
+          underline: const SizedBox(),
+          items: [
+            DropdownMenuItem(
+              value: true,
+              child: Text(
+                'Active',
+                style: TextStyle(color: Colors.green.shade700),
+              ),
+            ),
+            DropdownMenuItem(
+              value: false,
+              child: Text(
+                'Inactive',
+                style: TextStyle(color: Colors.red.shade700),
+              ),
+            ),
+          ],
+          onChanged: (val) {
+            if (val != null) {
+              onToggleStatus(val);
+            }
+          },
         ),
       ],
     );
@@ -938,8 +1355,12 @@ class _StaffCard extends ConsumerWidget {
 
 class _AssignRoleSheet extends ConsumerStatefulWidget {
   final StaffModel staff;
+  final List<String> roleNames;
 
-  const _AssignRoleSheet({required this.staff});
+  const _AssignRoleSheet({
+    required this.staff,
+    required this.roleNames,
+  });
 
   @override
   ConsumerState<_AssignRoleSheet> createState() => _AssignRoleSheetState();
@@ -949,8 +1370,8 @@ class _AssignRoleSheetState extends ConsumerState<_AssignRoleSheet> {
   final _sessionCtrl = TextEditingController();
   final _classCtrl = TextEditingController();
   final _sectionCtrl = TextEditingController();
-
   RoleModel? _selectedRole;
+  ClassModel? _selectedClass;
   bool _loading = false;
   String? _error;
 
@@ -971,8 +1392,30 @@ class _AssignRoleSheetState extends ConsumerState<_AssignRoleSheet> {
   void initState() {
     super.initState();
 
-    /// ✅ Auto-fill session
     _sessionCtrl.text = _getDefaultSession();
+
+    // ✅ Set current role after roles load
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final rolesAsync = ref.read(rolesProvider);
+
+      rolesAsync.whenData((roles) {
+        if (widget.roleNames.isEmpty) return;
+
+        final currentRoleName = widget.roleNames.first;
+
+        try {
+          final matched = roles.firstWhere(
+                (r) => r.name.toLowerCase() == currentRoleName.toLowerCase(),
+          );
+
+          setState(() {
+            _selectedRole = matched;
+          });
+        } catch (_) {
+          // ignore if not found
+        }
+      });
+    });
   }
 
   @override
@@ -1004,8 +1447,8 @@ class _AssignRoleSheetState extends ConsumerState<_AssignRoleSheet> {
       roleId: _selectedRole!.id,
       session: _sessionCtrl.text.trim(),
       schoolId: widget.staff.schoolId,
-      className: _classCtrl.text.trim().isEmpty ? null : _classCtrl.text.trim(),
-      section: _sectionCtrl.text.trim().isEmpty ? null : _sectionCtrl.text.trim(),
+      className: _classCtrl.text.isEmpty ? null : _classCtrl.text,
+      section: _sectionCtrl.text.isEmpty ? null : _sectionCtrl.text,
     );
 
     if (!mounted) return;
@@ -1016,6 +1459,20 @@ class _AssignRoleSheetState extends ConsumerState<_AssignRoleSheet> {
   @override
   Widget build(BuildContext context) {
     final rolesAsync = ref.watch(rolesProvider);
+    final authState = ref.watch(authNotifierProvider);
+
+    final staffRolesAsync = authState is AuthSuccess
+        ? ref.watch(
+      staffRolesProvider(
+        StaffRoleParams(
+          staffId: widget.staff.id,
+          session: _sessionCtrl.text.trim(),
+          schoolId: authState.user.schoolId,
+        ),
+      ),
+    )
+        : null;
+    final classesAsync = ref.watch(classesProvider);
     final bottom = MediaQuery.of(context).viewInsets.bottom;
 
     return Padding(
@@ -1062,16 +1519,90 @@ class _AssignRoleSheetState extends ConsumerState<_AssignRoleSheet> {
 
           const SizedBox(height: 12),
 
-          TextField(
-            controller: _classCtrl,
-            decoration: const InputDecoration(labelText: 'Class (optional)'),
-          ),
+          classesAsync.when(
+            data: (classes) {
+              if (_selectedClass == null && staffRolesAsync != null) {
+                staffRolesAsync.whenData((roles) {
+                  if (roles.isNotEmpty) {
+                    final role = roles.first;
 
-          const SizedBox(height: 12),
+                    try {
+                      final matched = classes.firstWhere(
+                            (c) =>
+                        c.className == role.className &&
+                            c.section == role.section,
+                      );
 
-          TextField(
-            controller: _sectionCtrl,
-            decoration: const InputDecoration(labelText: 'Section (optional)'),
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) {
+                          setState(() {
+                            _classCtrl.text = matched.className ?? '';
+                            _sectionCtrl.text = matched.section ?? '';
+                          });
+                        }
+                      });
+                    } catch (_) {}
+                  }
+                });
+              }
+              return Column(
+                children: [
+                  // ✅ CLASS DROPDOWN
+                  DropdownButtonFormField<String>(
+                    value: _classCtrl.text.isEmpty ? null : _classCtrl.text,
+                    decoration: const InputDecoration(labelText: 'Class'),
+                    items: [
+                      const DropdownMenuItem<String>(
+                        value: '',
+                        child: Text('None'),
+                      ),
+                      ...classes
+                          .map((c) => c.className)
+                          .toSet()
+                          .map((name) => DropdownMenuItem(
+                        value: name,
+                        child: Text(name),
+                      )),
+                    ],
+                    onChanged: (val) {
+                      setState(() {
+                        _classCtrl.text = val ?? '';
+                        _sectionCtrl.clear();
+                      });
+                    },
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // ✅ SECTION DROPDOWN (OPTIONAL)
+                  DropdownButtonFormField<String>(
+                    value: _sectionCtrl.text.isEmpty ? null : _sectionCtrl.text,
+                    decoration: const InputDecoration(labelText: 'Section (Optional)'),
+                    items: [
+                      const DropdownMenuItem<String>(
+                        value: '',
+                        child: Text('None'),
+                      ),
+                      ...classes
+                          .where((c) => c.className == _classCtrl.text)
+                          .map((c) => c.section)
+                          .toSet()
+                          .map((sec) => DropdownMenuItem(
+                        value: sec,
+                        child: Text(sec),
+                      )),
+                    ],
+                    onChanged: (val) {
+                      setState(() {
+                        _sectionCtrl.text = val ?? '';
+                      });
+                    },
+                  ),
+                ],
+              );
+            },
+            loading: () => const CircularProgressIndicator(),
+            error: (_, __) => const Text('Error loading classes'),
           ),
 
           if (_error != null) ...[

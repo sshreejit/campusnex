@@ -30,7 +30,7 @@ class RolesRepository {
           .from(AppConstants.rolesTable)
           .select()
           .eq('school_id', schoolId)
-          .order('created_at', ascending: false);
+          .order('name', ascending: true);
 
       return (response as List)
           .map((e) => RoleModel.fromJson(e as Map<String, dynamic>))

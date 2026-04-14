@@ -115,7 +115,7 @@ class UserRepository {
           .eq('school_id', schoolId)
           .eq('role', role)
           .eq('is_active', true)
-          .order('created_at', ascending: false);
+          .order('name', ascending: true);
 
       return data.map((e) => UserModel.fromJson(e)).toList();
     } catch (e) {
@@ -127,7 +127,7 @@ class UserRepository {
             .select()
             .eq('school_id', schoolId)
             .eq('role', role)
-            .order('created_at', ascending: false);
+            .order('name', ascending: false);
         return data.map((e) => UserModel.fromJson(e)).toList();
       }
       throw Exception('getUsersByRole failed: $e');

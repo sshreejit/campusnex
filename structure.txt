@@ -6,6 +6,7 @@ D:.
 ¦   .metadata
 ¦   analysis_options.yaml
 ¦   campusnex.iml
+¦   claude - Copy.md
 ¦   claude.md
 ¦   claude_old.md
 ¦   pubspec.lock
@@ -105,6 +106,12 @@ D:.
 ¦   ¦   ¦           errors-1775754086119.log
 ¦   ¦   ¦           errors-1775761712053.log
 ¦   ¦   ¦           errors-1775761712103.log
+¦   ¦   ¦           errors-1775762455039.log
+¦   ¦   ¦           errors-1775762455224.log
+¦   ¦   ¦           errors-1775933436907.log
+¦   ¦   ¦           errors-1775933437003.log
+¦   ¦   ¦           errors-1775936099110.log
+¦   ¦   ¦           errors-1775936099154.log
 ¦   ¦   ¦           
 ¦   ¦   +---noVersion
 ¦   ¦   ¦       buildLogic.lock
@@ -134,6 +141,12 @@ D:.
 ¦   ¦   ¦       errors-1775754086119.log
 ¦   ¦   ¦       errors-1775761712053.log
 ¦   ¦   ¦       errors-1775761712103.log
+¦   ¦   ¦       errors-1775762455038.log
+¦   ¦   ¦       errors-1775762455223.log
+¦   ¦   ¦       errors-1775933436907.log
+¦   ¦   ¦       errors-1775933437002.log
+¦   ¦   ¦       errors-1775936099110.log
+¦   ¦   ¦       errors-1775936099153.log
 ¦   ¦   ¦       
 ¦   ¦   +---sessions
 ¦   +---app
@@ -281,6 +294,7 @@ D:.
 ¦   ¦   ¦       supabase_constants.dart
 ¦   ¦   ¦       
 ¦   ¦   +---models
+¦   ¦   ¦       result.dart
 ¦   ¦   ¦       school_model.dart
 ¦   ¦   ¦       staff_model.dart
 ¦   ¦   ¦       staff_role_model.dart
@@ -309,6 +323,8 @@ D:.
 ¦   ¦   ¦       validators.dart
 ¦   ¦   ¦       
 ¦   ¦   +---widgets
+¦   ¦           screen_frame.dart
+¦   ¦           
 ¦   +---features
 ¦   ¦   +---attendance
 ¦   ¦   ¦   +---providers

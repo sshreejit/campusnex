@@ -13,6 +13,10 @@ class UserModel {
   final bool canCreateAdmin;
   final String? createdBy;
   final String? roleId;
+
+  // ✅ NEW FIELD (REQUIRED FIX)
+  final String? schoolShortName;
+
   final DateTime createdAt;
 
   const UserModel({
@@ -28,6 +32,10 @@ class UserModel {
     this.canCreateAdmin = false,
     this.createdBy,
     this.roleId,
+
+    // ✅ ADD IN CONSTRUCTOR
+    this.schoolShortName,
+
     required this.createdAt,
   });
 
@@ -45,6 +53,10 @@ class UserModel {
       canCreateAdmin: json['can_create_admin'] as bool? ?? false,
       createdBy: json['created_by'] as String?,
       roleId: json['role_id'] as String?,
+
+      // ✅ MAP FROM DB
+      schoolShortName: json['school_short_name'] as String?,
+
       createdAt: DateTime.parse(json['created_at'] as String),
     );
   }
@@ -62,6 +74,10 @@ class UserModel {
     'can_create_admin': canCreateAdmin,
     'created_by': createdBy,
     'role_id': roleId,
+
+    // ✅ ADD TO DB
+    'school_short_name': schoolShortName,
+
     'created_at': createdAt.toIso8601String(),
   };
 

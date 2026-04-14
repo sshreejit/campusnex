@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/models/staff_role_model.dart';
+import '../../../core/models/result.dart';
 import 'staff_repository.dart';
 
 /// 🔹 Params for provider (with schoolId)
@@ -124,6 +125,23 @@ class StaffRolesRepository {
           );
         }
       }
+      await _supabase
+          .from(AppConstants.staffRolesTable)
+          .delete()
+          .eq('staff_id', staffId)
+          .eq('school_id', schoolId)
+          .eq('session', normalizedSession);
+
+      // ✅ DELETE OLD ROLE
+      final deleteResponse = await _supabase
+          .from(AppConstants.staffRolesTable)
+          .delete()
+          .eq('staff_id', staffId)
+          .eq('school_id', schoolId)
+          .eq('session', normalizedSession)
+          .select();
+
+      debugPrint('DELETE RESULT: $deleteResponse');
 
       await _supabase.from(AppConstants.staffRolesTable).insert({
         'staff_id': staffId,
@@ -181,6 +199,60 @@ class StaffRolesRepository {
           .toList();
     } catch (e) {
       debugPrint('❌ getStaffRoles error: $e');
+      return [];
+    }
+  }
+
+  Future<List<String>> getStaffIdsByRole({
+    required String roleName,
+    required String schoolId,
+    required String session,
+  }) async {
+    try {
+      final normalizedSession = _normalizeSession(session);
+
+      final response = await _supabase
+          .from(AppConstants.staffRolesTable)
+          .select('staff_id, roles!inner(name)')
+          .eq('school_id', schoolId)
+          .eq('session', normalizedSession)
+          .eq('roles.name', roleName);
+
+      final List data = response;
+
+      return (response as List)
+          .map<String>((e) => e['staff_id'] as String)
+          .toList();
+    } catch (e) {
+      debugPrint('❌ getStaffIdsByRole error: $e');
+      return [];
+    }
+  }
+
+  Future<List<StaffRoleModel>> getAllStaffRoles({
+    required String schoolId,
+    required String session,
+  }) async {
+    try {
+      final normalizedSession = _normalizeSession(session);
+
+      final response = await _supabase
+          .from(AppConstants.staffRolesTable)
+          .select('''
+            staff_id,
+            session,
+            class_name,
+            section,
+            role:roles(name)
+          ''')
+          .eq('school_id', schoolId)
+          .eq('session', normalizedSession);
+
+      return (response as List)
+          .map((e) => StaffRoleModel.fromJson(e))
+          .toList();
+    } catch (e) {
+      debugPrint('❌ getAllStaffRoles error: $e');
       return [];
     }
   }

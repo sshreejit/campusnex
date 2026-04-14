@@ -28,7 +28,7 @@ class DesignationRepository {
           .select()
           .eq('school_id', schoolId)
           .eq('is_active', true)
-          .order('created_at', ascending: false);
+          .order('name', ascending: true);
 
       return (response as List)
           .map((e) => DesignationModel.fromJson(e as Map<String, dynamic>))

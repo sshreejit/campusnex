@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/models/staff_model.dart';
+import '../../../core/models/result.dart';
 import '../../../core/repositories/user_repository.dart';
 
 final staffRepositoryProvider = Provider<StaffRepository>((ref) {
@@ -15,14 +16,6 @@ final staffRepositoryProvider = Provider<StaffRepository>((ref) {
   return StaffRepository(supabase, userRepo);
 });
 
-/// Structured Result for write operations
-class Result {
-  final bool success;
-  final String? error;
-
-  Result({required this.success, this.error});
-}
-
 class StaffRepository {
   final SupabaseClient _supabase;
   final UserRepository _userRepository;
@@ -30,14 +23,18 @@ class StaffRepository {
   StaffRepository(this._supabase, this._userRepository);
 
   /// Fetch staff list (READ)
-  Future<List<StaffModel>> getStaffList(String schoolId) async {
+  Future<List<StaffModel>> getStaffList({
+    required String schoolId,
+    required int from,
+    required int to,
+  }) async {
     try {
       final response = await _supabase
           .from(AppConstants.staffTable)
           .select()
           .eq('school_id', schoolId)
-          .eq('is_active', true)
-          .order('created_at', ascending: false);
+          .order('created_at', ascending: false)
+          .range(from, to); // ✅ PAGINATION
 
       return (response as List)
           .map((e) => StaffModel.fromJson(e as Map<String, dynamic>))
