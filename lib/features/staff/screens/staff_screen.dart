@@ -1140,7 +1140,83 @@ class _StaffFormSheetState extends ConsumerState<_StaffFormSheet> {
 // STAFF CARD
 // ─────────────────────────────────────────────
 
-// ONLY CHANGE: _StaffCard converted to ConsumerWidget + roles display added
+void _showImagePreview(BuildContext context, String? imageUrl) {
+  if (imageUrl == null || imageUrl.isEmpty) return;
+
+  final size = MediaQuery.of(context).size;
+
+  showGeneralDialog(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: '',
+    barrierColor: Colors.black.withOpacity(0.85),
+    transitionDuration: const Duration(milliseconds: 250),
+
+    pageBuilder: (_, __, ___) {
+      return Center(
+        child: GestureDetector(
+          onTap: () {}, // prevent closing on image tap
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+
+              /// 🔹 IMAGE WITH DEPTH
+              Material(
+                elevation: 10,
+                borderRadius: BorderRadius.circular(16),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: SizedBox(
+                    width: size.width * 0.65,
+                    height: size.height * 0.45,
+                    child: CachedNetworkImage(
+                      imageUrl: imageUrl,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 14),
+
+              /// 🔹 BETTER MESSAGE UI
+              Container(
+                padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'Tap outside to close',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+
+    /// 🔥 SMOOTH ZOOM ANIMATION
+    transitionBuilder: (_, animation, __, child) {
+      final curved =
+      CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+
+      return FadeTransition(
+        opacity: curved,
+        child: ScaleTransition(
+          scale: Tween(begin: 0.85, end: 1.0).animate(curved),
+          child: child,
+        ),
+      );
+    },
+  );
+}
 
 class _StaffCard extends StatelessWidget {
   final StaffModel staff;
@@ -1188,80 +1264,82 @@ class _StaffCard extends StatelessWidget {
       color: colorScheme.surface,
       child: Padding(
         padding: const EdgeInsets.all(14),
-        child: Row(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Photo
-            CircleAvatar(
-              radius: 28,
+
+        /// 🔹 TOP SECTION
+        Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+
+          GestureDetector(
+            onTap: () => _showImagePreview(context, staff.photoUrl),
+            child: CircleAvatar(
+              radius: 34,
               backgroundColor: colorScheme.primaryContainer,
               backgroundImage: staff.photoUrl != null
                   ? CachedNetworkImageProvider(staff.photoUrl!)
                   : null,
               child: staff.photoUrl == null
                   ? Icon(Icons.person,
-                      size: 28, color: colorScheme.onPrimaryContainer)
+                  size: 28, color: colorScheme.onPrimaryContainer)
                   : null,
             ),
-            const SizedBox(width: 12),
+          ),
 
-            // Details
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header row: name + edit + delete
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '${staff.name} (${staff.empcode})',
-                          style: textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: colorScheme.onSurface,
-                          ),
+          const SizedBox(width: 10),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${staff.name} (${staff.empcode})',
+                        style: textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                      IconButton(
-                        icon: Icon(Icons.edit,
-                            size: 20, color: colorScheme.primary),
-                        onPressed: onEdit,
-                        visualDensity: VisualDensity.compact,
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.delete_outline,
-                            size: 20, color: colorScheme.error),
-                        onPressed: onDelete,
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 2),
-
-                  // Designation · Mobile
-                  Text(
-                    '${staff.designation} • ${staff.mobile}',
-                    style: textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
                     ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                    IconButton(
+                      icon: const Icon(Icons.edit, size: 20),
+                      onPressed: onEdit,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, size: 20),
+                      onPressed: onDelete,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                ),
 
-                  const SizedBox(height: 10),
+                const SizedBox(height: 2),
 
-                  // Role + Status + Toggle — single row
-                  _roleStatusToggleRow(
-                    roleNames: roleNames,
-                    isActive: staff.isActive,
-                    onAssignRole: onAssignRole,
-                    onToggleStatus: onToggleStatus,
-                  ),
-                ],
-              ),
+                Text(
+                  '${staff.designation} • ${staff.mobile}',
+                  style: textTheme.bodySmall,
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
+
+      const SizedBox(height: 6),
+
+      _roleStatusToggleRow(
+        roleNames: roleNames,
+        isActive: staff.isActive,
+        onAssignRole: onAssignRole,
+        onToggleStatus: onToggleStatus,
+      ),
+      ],
+        )
       ),
     );
   }
@@ -1273,80 +1351,84 @@ class _StaffCard extends StatelessWidget {
     required ValueChanged<bool> onToggleStatus,
   }) {
     const brandColor = Color(0xFF36454F);
-    return Row(
-      children: [
-        // Interactive role chip
-        GestureDetector(
-          onTap: onAssignRole,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: roleNames.isEmpty
-                  ? Colors.orange.withValues(alpha: 0.15)
-                  : brandColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              roleNames.isEmpty
-                  ? 'Assign Role'
-                  : (roleDisplay ?? roleNames.join(', ')),
-              style: TextStyle(
-                color: roleNames.isEmpty ? Colors.orange : brandColor,
-                fontWeight: FontWeight.w500,
-                fontSize: 12,
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Row(
+        mainAxisSize: MainAxisSize.min, // 🔥 KEY FIX
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+
+          /// 🔹 ROLE CHIP
+          GestureDetector(
+            onTap: onAssignRole,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: roleNames.isEmpty
+                    ? Colors.orange.withOpacity(0.15)
+                    : brandColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                roleNames.isEmpty
+                    ? 'Assign Role'
+                    : (roleDisplay ?? roleNames.join(', ')),
+                style: TextStyle(
+                  color: roleNames.isEmpty ? Colors.orange : brandColor,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 12,
+                ),
               ),
             ),
           ),
-        ),
 
-        // Edit icon (only when role exists)
-        if (roleNames.isNotEmpty) ...[
-          const SizedBox(width: 2),
-          SizedBox(
-            width: 28,
-            height: 28,
-            child: IconButton(
-              padding: EdgeInsets.zero,
-              icon: const Icon(Icons.edit, size: 15),
-              color: brandColor.withValues(alpha: 0.6),
-              onPressed: onAssignRole,
-            ),
-          ),
-        ],
-
-        const SizedBox(width: 6),
-
-        // Status badge
-
-        const Spacer(),
-
-        // Toggle
-        DropdownButton<bool>(
-          value: isActive,
-          underline: const SizedBox(),
-          items: [
-            DropdownMenuItem(
-              value: true,
-              child: Text(
-                'Active',
-                style: TextStyle(color: Colors.green.shade700),
-              ),
-            ),
-            DropdownMenuItem(
-              value: false,
-              child: Text(
-                'Inactive',
-                style: TextStyle(color: Colors.red.shade700),
+          /// ✏️ EDIT
+          if (roleNames.isNotEmpty) ...[
+            const SizedBox(width: 6),
+            GestureDetector(
+              onTap: onAssignRole, // ✅ SAME FUNCTIONALITY
+              child: Icon(
+                Icons.edit,
+                size: 16,
+                color: brandColor.withOpacity(0.6),
               ),
             ),
           ],
-          onChanged: (val) {
-            if (val != null) {
-              onToggleStatus(val);
-            }
-          },
-        ),
-      ],
+
+          const SizedBox(width: 12),
+
+          /// STATUS
+          SizedBox(
+            height: 28,
+            child: DropdownButton<bool>(
+              value: isActive,
+              isDense: true, // 🔥 IMPORTANT
+              underline: const SizedBox(),
+              style: const TextStyle(fontSize: 12),
+              items: [
+                DropdownMenuItem(
+                  value: true,
+                  child: Text(
+                    'Active',
+                    style: TextStyle(color: Colors.green.shade700, fontSize: 12),
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: false,
+                  child: Text(
+                    'Inactive',
+                    style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+                  ),
+                ),
+              ],
+              onChanged: (val) {
+                if (val != null) onToggleStatus(val);
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

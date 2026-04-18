@@ -4,6 +4,7 @@ import 'package:campusnex/core/repositories/user_repository.dart';
 import 'package:campusnex/core/theme/app_colors.dart';
 import 'package:campusnex/features/auth/auth_notifier.dart';
 import 'package:campusnex/features/dashboard/providers/dashboard_providers.dart';
+import 'dart:ui';
 
 Widget _buildActionMenu(WidgetRef ref) {
   return PopupMenuButton<String>(
@@ -29,11 +30,10 @@ Widget _buildActionMenu(WidgetRef ref) {
 
 Widget _buildAdminBadge(bool isManager) {
   return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
     decoration: BoxDecoration(
-      color: Colors.white.withOpacity(0.15),
-      borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: Colors.white30),
+      color: Colors.white.withOpacity(0.12),
+      borderRadius: BorderRadius.circular(6),
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,
@@ -47,8 +47,7 @@ Widget _buildAdminBadge(bool isManager) {
           style: TextStyle(
             color: Colors.white,
             fontSize: 10,
-            letterSpacing: 0.3,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ],
@@ -67,103 +66,85 @@ class SchoolHeader extends ConsumerWidget {
     final school = ref.watch(currentSchoolProvider).value;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.charcoalSteel,
-            AppColors.charcoalSteel.withOpacity(0.85),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: AppColors.charcoalSteel,
         borderRadius: const BorderRadius.only(
-          bottomLeft: Radius.circular(28),
-          bottomRight: Radius.circular(28),
+          bottomLeft: Radius.circular(20),
+          bottomRight: Radius.circular(20),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.25),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
 
-          /// 🔥 TOP ROW
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+          /// 🔹 LOGO
+          SizedBox(
+            width: 52,
+            child: (school?.logoUrl ?? '').isNotEmpty
+                ? Image.network(
+              school!.logoUrl!,
+              width: 52,
+              height: 52,
+              fit: BoxFit.contain,
+            )
+                : const Icon(Icons.school, size: 36, color: Colors.white),
+          ),
 
-              /// 🔹 LOGO
-              SizedBox(
-                width: 75, // match image size
-                child: Align(
-                  alignment: Alignment.topLeft,
-                  child: (school?.logoUrl ?? '').isNotEmpty
-                      ? Image.network(
-                    school!.logoUrl!,
-                    width: 75,
-                    height: 75,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => const Icon(
-                      Icons.school,
-                      size: 40,
+          const SizedBox(width: 12),
+
+          /// 🔹 TEXT
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+
+                /// School Name
+                if ((school?.name ?? '').isNotEmpty)
+                  Text(
+                    school!.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
                       color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
                     ),
-                  )
-                      : const Icon(
-                    Icons.school,
-                    size: 40,
-                    color: Colors.white,
                   ),
-                ),
-              ),
 
-              const SizedBox(width: 12),
+                const SizedBox(height: 4),
 
-              /// 🔹 TEXT BLOCK
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                /// Welcome + Badge
+                Row(
                   children: [
-
-                    /// School Name
-                    if ((school?.name ?? '').isNotEmpty)
-                      Text(
-                        school!.name,
+                    Expanded(
+                      child: Text(
+                        'Welcome, ${user.name}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
+                          color: Colors.white70,
+                          fontSize: 14,
                         ),
                       ),
-
-                    const SizedBox(height: 4), // 🔥 tighter
-
-                    /// Welcome + Badge
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Welcome, ${user?.name ?? ''}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ),
-                        _buildAdminBadge(true),
-                      ],
                     ),
+                    _buildAdminBadge(true),
                   ],
                 ),
-              ),
-
-              /// 🔹 MENU
-              _buildActionMenu(ref),
-            ],
+              ],
+            ),
           ),
+
+          /// 🔹 MENU
+          _buildActionMenu(ref),
         ],
       ),
     );
