@@ -27,7 +27,6 @@ class DesignationRepository {
           .from(AppConstants.designationsTable)
           .select()
           .eq('school_id', schoolId)
-          .eq('is_active', true)
           .order('name', ascending: true);
 
       return (response as List)
@@ -66,33 +65,76 @@ class DesignationRepository {
     required String name,
   }) async {
     try {
+      /// STEP 1: Get OLD NAME
+      final old = await _supabase
+          .from(AppConstants.designationsTable)
+          .select('name')
+          .eq('id', id)
+          .single();
+
+      final oldName = old['name'];
+
+      /// STEP 2: Update designation table
       await _supabase
           .from(AppConstants.designationsTable)
           .update({'name': name.trim()})
           .eq('id', id);
+
+      /// STEP 3: Update staff table (FIXED)
+      await _supabase
+          .from('staff')
+          .update({'designation': name.trim()})
+          .ilike('designation', '%$oldName%');
+
       return DesignationResult(success: true);
-    } on PostgrestException catch (e) {
-      debugPrint('❌ updateDesignation error: $e');
-      if (e.code == '23505') {
-        return DesignationResult(success: false, error: 'Designation already exists');
-      }
-      return DesignationResult(success: false, error: e.message);
     } catch (e) {
-      debugPrint('❌ updateDesignation error: $e');
       return DesignationResult(success: false, error: e.toString());
     }
   }
 
   Future<DesignationResult> deleteDesignation({required String id}) async {
     try {
+      /// STEP 1: Get designation name
+      final old = await _supabase
+          .from(AppConstants.designationsTable)
+          .select('name')
+          .eq('id', id)
+          .single();
+
+      final oldName = old['name'];
+
+      /// STEP 2: DELETE (not soft delete)
       await _supabase
           .from(AppConstants.designationsTable)
-          .update({'is_active': false})
+          .delete()
           .eq('id', id);
+
+      /// STEP 3: clear staff
+      await _supabase
+          .from('staff')
+          .update({'designation': null})
+          .ilike('designation', '%$oldName%');
+
       return DesignationResult(success: true);
     } catch (e) {
-      debugPrint('❌ deleteDesignation error: $e');
       return DesignationResult(success: false, error: e.toString());
     }
+  }
+  Future<bool> isDesignationUsed(String id) async {
+    final old = await _supabase
+        .from(AppConstants.designationsTable)
+        .select('name')
+        .eq('id', id)
+        .single();
+
+    final name = old['name'];
+
+    final result = await _supabase
+        .from('staff')
+        .select('id')
+        .eq('designation', name)
+        .limit(1);
+
+    return (result as List).isNotEmpty;
   }
 }

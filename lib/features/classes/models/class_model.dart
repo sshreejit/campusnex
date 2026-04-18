@@ -31,4 +31,6 @@ class ClassModel {
       'is_active': isActive,
     };
   }
+
+  String get displayName => '$className $section';
 }

@@ -6,7 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../classes/providers/class_provider.dart';
-import '../../../core/models/class_model.dart';
+
+import '../../classes/models/class_model.dart';
 import '../../../core/models/staff_model.dart';
 import '../../../core/models/result.dart';
 import '../../auth/auth_notifier.dart';
@@ -17,6 +18,7 @@ import '../../designations/providers/designation_provider.dart';
 import '../../roles/models/role_model.dart';
 import '../repositories/staff_repository.dart';
 import '../repositories/staff_roles_repository.dart';
+import '../providers/staff_provider.dart';
 import '../../../core/repositories/user_repository.dart';
 
 class StaffScreen extends ConsumerStatefulWidget {
@@ -182,7 +184,7 @@ class _StaffScreenState extends ConsumerState<StaffScreen> {
     final rolesAsync = ref.watch(rolesProvider);
 
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+      backgroundColor: const Color(0xFFE2E6EA), // ✅ light grey
       body: staffAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),

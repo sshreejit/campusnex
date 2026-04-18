@@ -6,7 +6,6 @@ D:.
 ¦   .metadata
 ¦   analysis_options.yaml
 ¦   campusnex.iml
-¦   claude - Copy.md
 ¦   claude.md
 ¦   claude_old.md
 ¦   pubspec.lock
@@ -112,6 +111,20 @@ D:.
 ¦   ¦   ¦           errors-1775933437003.log
 ¦   ¦   ¦           errors-1775936099110.log
 ¦   ¦   ¦           errors-1775936099154.log
+¦   ¦   ¦           errors-1775994599427.log
+¦   ¦   ¦           errors-1775994599478.log
+¦   ¦   ¦           errors-1776007329791.log
+¦   ¦   ¦           errors-1776007329836.log
+¦   ¦   ¦           errors-1776008987703.log
+¦   ¦   ¦           errors-1776008987721.log
+¦   ¦   ¦           errors-1776016471599.log
+¦   ¦   ¦           errors-1776016471619.log
+¦   ¦   ¦           errors-1776017543911.log
+¦   ¦   ¦           errors-1776017543942.log
+¦   ¦   ¦           errors-1776281293531.log
+¦   ¦   ¦           errors-1776281293575.log
+¦   ¦   ¦           errors-1776449985903.log
+¦   ¦   ¦           errors-1776449985919.log
 ¦   ¦   ¦           
 ¦   ¦   +---noVersion
 ¦   ¦   ¦       buildLogic.lock
@@ -147,6 +160,20 @@ D:.
 ¦   ¦   ¦       errors-1775933437002.log
 ¦   ¦   ¦       errors-1775936099110.log
 ¦   ¦   ¦       errors-1775936099153.log
+¦   ¦   ¦       errors-1775994599426.log
+¦   ¦   ¦       errors-1775994599478.log
+¦   ¦   ¦       errors-1776007329791.log
+¦   ¦   ¦       errors-1776007329836.log
+¦   ¦   ¦       errors-1776008987703.log
+¦   ¦   ¦       errors-1776008987721.log
+¦   ¦   ¦       errors-1776016471599.log
+¦   ¦   ¦       errors-1776016471619.log
+¦   ¦   ¦       errors-1776017543911.log
+¦   ¦   ¦       errors-1776017543942.log
+¦   ¦   ¦       errors-1776281293531.log
+¦   ¦   ¦       errors-1776281293575.log
+¦   ¦   ¦       errors-1776449985903.log
+¦   ¦   ¦       errors-1776449985919.log
 ¦   ¦   ¦       
 ¦   ¦   +---sessions
 ¦   +---app
@@ -294,6 +321,7 @@ D:.
 ¦   ¦   ¦       supabase_constants.dart
 ¦   ¦   ¦       
 ¦   ¦   +---models
+¦   ¦   ¦       class_model.dart
 ¦   ¦   ¦       result.dart
 ¦   ¦   ¦       school_model.dart
 ¦   ¦   ¦       staff_model.dart
@@ -323,6 +351,8 @@ D:.
 ¦   ¦   ¦       validators.dart
 ¦   ¦   ¦       
 ¦   ¦   +---widgets
+¦   ¦           app_fab.dart
+¦   ¦           confirm_dialog.dart
 ¦   ¦           screen_frame.dart
 ¦   ¦           
 ¦   +---features
@@ -344,18 +374,40 @@ D:.
 ¦   ¦   ¦           setup_school_screen.dart
 ¦   ¦   ¦           welcome_screen.dart
 ¦   ¦   ¦           
+¦   ¦   +---classes
+¦   ¦   ¦   +---providers
+¦   ¦   ¦   ¦       class_provider.dart
+¦   ¦   ¦   ¦       
+¦   ¦   ¦   +---repositories
+¦   ¦   ¦           class_repository.dart
+¦   ¦   ¦           
 ¦   ¦   +---dashboard
+¦   ¦   ¦   +---config
+¦   ¦   ¦   ¦       dashboard_config.dart
+¦   ¦   ¦   ¦       
 ¦   ¦   ¦   +---data
 ¦   ¦   ¦   +---providers
 ¦   ¦   ¦   ¦       dashboard_providers.dart
 ¦   ¦   ¦   ¦       
 ¦   ¦   ¦   +---screens
-¦   ¦   ¦           admin_dashboard.dart
-¦   ¦   ¦           coordinator_dashboard.dart
-¦   ¦   ¦           parent_dashboard.dart
-¦   ¦   ¦           staff_dashboard.dart
-¦   ¦   ¦           super_user_dashboard.dart
-¦   ¦   ¦           
+¦   ¦   ¦   +---utils
+¦   ¦   ¦   ¦       role_resolver.dart
+¦   ¦   ¦   ¦       
+¦   ¦   ¦   +---widgets
+¦   ¦   ¦       ¦   admin_management_tab.dart
+¦   ¦   ¦       ¦   dashboard_layout.dart
+¦   ¦   ¦       ¦   role_banner.dart
+¦   ¦   ¦       ¦   school_header.dart
+¦   ¦   ¦       ¦   school_overview_tab.dart
+¦   ¦   ¦       ¦   school_profile_tab.dart
+¦   ¦   ¦       ¦   student_management_tab.dart
+¦   ¦   ¦       ¦   
+¦   ¦   ¦       +---management
+¦   ¦   ¦               administrators_tab.dart
+¦   ¦   ¦               designation_tab.dart
+¦   ¦   ¦               management_tab.dart
+¦   ¦   ¦               roles_tab.dart
+¦   ¦   ¦               
 ¦   ¦   +---designations
 ¦   ¦   ¦   +---models
 ¦   ¦   ¦   ¦       designation_model.dart
@@ -376,10 +428,16 @@ D:.
 ¦   ¦   ¦   +---models
 ¦   ¦   ¦   ¦       role_model.dart
 ¦   ¦   ¦   ¦       
+¦   ¦   ¦   +---providers
+¦   ¦   ¦   ¦       role_provider.dart
+¦   ¦   ¦   ¦       
 ¦   ¦   ¦   +---repositories
 ¦   ¦   ¦           roles_repository.dart
 ¦   ¦   ¦           
 ¦   ¦   +---staff
+¦   ¦   ¦   +---providers
+¦   ¦   ¦   ¦       staff_provider.dart
+¦   ¦   ¦   ¦       
 ¦   ¦   ¦   +---repositories
 ¦   ¦   ¦   ¦       staff_repository.dart
 ¦   ¦   ¦   ¦       staff_roles_repository.dart

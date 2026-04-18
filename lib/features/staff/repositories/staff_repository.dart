@@ -241,4 +241,28 @@ class StaffRepository {
       return Result(success: false, error: e.toString());
     }
   }
+  /// 🔥 NEW: Fetch staff roles with joins
+  Future<List<Map<String, dynamic>>> getStaffRolesRaw(String schoolId) async {
+    try {
+      final response = await _supabase
+          .from('staff_roles')
+          .select('''
+          id,
+          staff_id,
+          role_id,
+          session,
+          class_name,
+          section,
+          created_at,
+          role:roles(name),
+          staff:staff(id, name)
+        ''')
+          .eq('school_id', schoolId);
+
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('❌ getStaffRolesRaw error: $e');
+      return [];
+    }
+  }
 }

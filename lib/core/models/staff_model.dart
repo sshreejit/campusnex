@@ -30,7 +30,7 @@ class StaffModel {
       userId: json['user_id'] as String,
       empcode: json['empcode'] as String,
       name: json['name'] as String,
-      designation: json['designation'] as String,
+      designation: json['designation'] as String? ?? '',
       mobile: json['mobile'] as String,
       isActive: json['is_active'] as bool? ?? true,
       createdAt: DateTime.parse(json['created_at'] as String),

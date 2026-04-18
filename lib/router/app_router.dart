@@ -5,8 +5,10 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../core/constants/app_constants.dart';
 import '../core/constants/dev_config.dart';
+
 import '../features/auth/auth_notifier.dart';
 import '../features/auth/auth_state.dart';
+
 import '../features/auth/screens/dev_login_screen.dart';
 import '../features/auth/screens/dev_onboarding_screen.dart';
 import '../features/auth/screens/forgot_password_screen.dart';
@@ -14,15 +16,13 @@ import '../features/auth/screens/phone_screen.dart';
 import '../features/auth/screens/welcome_screen.dart';
 import '../features/auth/screens/register_screen.dart';
 import '../features/auth/screens/setup_school_screen.dart';
-import '../features/dashboard/screens/admin_dashboard.dart';
-import '../features/dashboard/screens/coordinator_dashboard.dart';
-import '../features/dashboard/screens/parent_dashboard.dart';
-import '../features/dashboard/screens/staff_dashboard.dart';
-import '../features/dashboard/screens/super_user_dashboard.dart';
+
+// ✅ NEW (ONLY DASHBOARD ENTRY)
+import '../features/dashboard/widgets/dashboard_layout.dart';
 
 part 'app_router.g.dart';
 
-// ── Route paths ─────────────────────────────────────────────
+/// ── Route paths ─────────────────────────────────────────────
 
 class AppRoutes {
   AppRoutes._();
@@ -34,6 +34,8 @@ class AppRoutes {
   static const String forgotPassword = '/forgot-password';
   static const String setupSchool = '/setup-school';
   static const String devOnboarding = '/dev-onboarding';
+
+  // 🔥 Keep role-based routes (URL level)
   static const String superUserDashboard = '/super-user';
   static const String adminDashboard = '/admin';
   static const String coordinatorDashboard = '/coordinator';
@@ -60,7 +62,7 @@ class AppRoutes {
   static bool isDashboard(String loc) => _dashboardRoutes.contains(loc);
 }
 
-// ── Router notifier ─────────────────────────────────────────
+/// ── Router notifier ─────────────────────────────────────────
 
 class _RouterNotifier extends ChangeNotifier {
   _RouterNotifier(this._ref) {
@@ -85,7 +87,7 @@ class _RouterNotifier extends ChangeNotifier {
       _authGuard(_auth, state.uri.toString());
 }
 
-// ── Auth Guard (FIXED) ─────────────────────────────────────
+/// ── Auth Guard ─────────────────────────────────────────────
 
 String? _authGuard(AuthFlowState auth, String location) {
   switch (auth) {
@@ -104,13 +106,12 @@ String? _authGuard(AuthFlowState auth, String location) {
           : AppRoutes.devOnboarding;
 
     case AuthLoading():
-      return null; // ✅ FIX
+      return null;
 
     case AwaitingEmailVerification():
       return null;
 
     default:
-    // ✅ IMPROVED
       if (location == AppRoutes.login ||
           location == AppRoutes.welcome ||
           location == AppRoutes.register) {
@@ -120,7 +121,7 @@ String? _authGuard(AuthFlowState auth, String location) {
   }
 }
 
-// ── Router provider ─────────────────────────────────────────
+/// ── Router provider ─────────────────────────────────────────
 
 @riverpod
 GoRouter appRouter(Ref ref) {
@@ -129,16 +130,17 @@ GoRouter appRouter(Ref ref) {
 
   return GoRouter(
     initialLocation: isDevMode ? AppRoutes.login : AppRoutes.splash,
-    debugLogDiagnostics: isDevMode, // ✅ FIX
+    debugLogDiagnostics: isDevMode,
     refreshListenable: notifier,
     redirect: notifier.redirect,
     routes: [
+      /// Splash
       GoRoute(
         path: AppRoutes.splash,
         builder: (context, state) => const _SplashScreen(),
       ),
 
-      // Auth routes
+      /// Auth routes
       GoRoute(
         path: AppRoutes.welcome,
         builder: (context, state) => const WelcomeScreen(),
@@ -165,26 +167,26 @@ GoRouter appRouter(Ref ref) {
         builder: (context, state) => const DevOnboardingScreen(),
       ),
 
-      // Dashboards
+      /// 🔥 ALL DASHBOARDS → ONE LAYOUT
       GoRoute(
         path: AppRoutes.superUserDashboard,
-        builder: (context, state) => const SuperUserDashboard(),
+        builder: (context, state) => const DashboardLayout(),
       ),
       GoRoute(
         path: AppRoutes.adminDashboard,
-        builder: (context, state) => const AdminDashboard(),
+        builder: (context, state) => const DashboardLayout(),
       ),
       GoRoute(
         path: AppRoutes.coordinatorDashboard,
-        builder: (context, state) => const CoordinatorDashboard(),
+        builder: (context, state) => const DashboardLayout(),
       ),
       GoRoute(
         path: AppRoutes.staffDashboard,
-        builder: (context, state) => const StaffDashboard(),
+        builder: (context, state) => const DashboardLayout(),
       ),
       GoRoute(
         path: AppRoutes.parentDashboard,
-        builder: (context, state) => const ParentDashboard(),
+        builder: (context, state) => const DashboardLayout(),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(
@@ -193,7 +195,7 @@ GoRouter appRouter(Ref ref) {
   );
 }
 
-// ── Splash Screen ─────────────────────────────────────────
+/// ── Splash Screen ─────────────────────────────────────────
 
 class _SplashScreen extends ConsumerStatefulWidget {
   const _SplashScreen();

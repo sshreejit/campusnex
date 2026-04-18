@@ -32,6 +32,9 @@ class RolesRepository {
           .eq('school_id', schoolId)
           .order('name', ascending: true);
 
+      debugPrint('👉 SchoolId used: $schoolId');
+      debugPrint('👉 ROLES RESPONSE: $response');
+
       return (response as List)
           .map((e) => RoleModel.fromJson(e as Map<String, dynamic>))
           .toList();
@@ -149,6 +152,24 @@ class RolesRepository {
       }
 
       return RoleResult(success: false, error: 'Failed to delete role');
+    }
+  }
+  Future<bool> isRoleAssigned({
+    required String roleId,
+    required String schoolId,
+  }) async {
+    try {
+      final res = await _supabase
+          .from('staff_roles')
+          .select('id')
+          .eq('role_id', roleId)
+          .eq('school_id', schoolId)
+          .limit(1);
+
+      return (res as List).isNotEmpty;
+    } catch (e) {
+      debugPrint('❌ isRoleAssigned error: $e');
+      return false;
     }
   }
 }

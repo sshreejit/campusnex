@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
+  static const Color maroon = Color(0xFF7A001E);
+
   // --- BRAND (Charcoal Steel Theme) ---
   static const Color charcoalSteel = Color(0xFF36454F); // Your core color
   static const Color primary = charcoalSteel;

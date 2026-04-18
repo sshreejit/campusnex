@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../core/models/class_model.dart';
+import '../models/class_model.dart';
 import '../../../core/models/result.dart';
 
 final classRepositoryProvider = Provider<ClassRepository>((ref) {
@@ -38,6 +38,14 @@ class ClassRepository {
       });
 
       return const Result(success: true);
+    } on PostgrestException catch (e) {
+      if (e.code == '23505') {
+        return const Result(
+          success: false,
+          error: 'Class + Section already exists',
+        );
+      }
+      return Result(success: false, error: e.message);
     } catch (e) {
       return Result(success: false, error: e.toString());
     }
@@ -47,6 +55,7 @@ class ClassRepository {
     required String id,
     required String className,
     required String section,
+    required String schoolId,
   }) async {
     try {
       await _supabase
@@ -55,7 +64,8 @@ class ClassRepository {
         'class_name': className.trim(),
         'section': section.trim(),
       })
-          .eq('id', id);
+          .eq('id', id)
+          .eq('school_id', schoolId); // 🔥 ADD THIS
 
       return const Result(success: true);
     } catch (e) {
@@ -63,12 +73,16 @@ class ClassRepository {
     }
   }
 
-  Future<Result> deleteClass(String id) async {
+  Future<Result> deleteClass({
+    required String id,
+    required String schoolId,
+  }) async {
     try {
       await _supabase
           .from('classes')
           .update({'is_active': false})
-          .eq('id', id);
+          .eq('id', id)
+          .eq('school_id', schoolId); // 🔥 ADD THIS
 
       return const Result(success: true);
     } catch (e) {
